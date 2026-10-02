@@ -1,22 +1,17 @@
 require("dotenv").config();
 
 const express = require("express");
-const crypto = require("crypto");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// Configuration TikTok
 const TIKTOK_CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY;
+const TIKTOK_CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET;
 
 const REDIRECT_URI =
   "https://tokpilote-backend.onrender.com/auth/tiktok/callback";
-
-// Stockage temporaire des "state" OAuth.
-// Nous améliorerons ce stockage avant la mise en production.
-const oauthStates = new Map();
 
 // Accueil du backend
 app.get("/", (req, res) => {
@@ -33,70 +28,50 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Démarrer la connexion TikTok
-app.get("/auth/tiktok/login", (req, res) => {
+// Démarre la connexion TikTok
+app.get("/auth/tiktok", (req, res) => {
   if (!TIKTOK_CLIENT_KEY) {
     return res.status(500).json({
-      error: "TIKTOK_CLIENT_KEY n'est pas configurée sur le serveur."
+      error: "TIKTOK_CLIENT_KEY manquante"
     });
   }
 
-  const state = crypto.randomBytes(32).toString("hex");
-
-  oauthStates.set(state, Date.now());
-
-  // Supprime le state après 10 minutes
-  setTimeout(() => {
-    oauthStates.delete(state);
-  }, 10 * 60 * 1000);
-
   const params = new URLSearchParams({
     client_key: TIKTOK_CLIENT_KEY,
-    scope: "user.info.basic",
     response_type: "code",
-    redirect_uri: REDIRECT_URI,
-    state
+    scope: "user.info.basic",
+    redirect_uri: REDIRECT_URI
   });
 
   const authorizationUrl =
     `https://www.tiktok.com/v2/auth/authorize/?${params.toString()}`;
 
-  return res.redirect(authorizationUrl);
+  res.redirect(authorizationUrl);
 });
 
-// Retour OAuth envoyé par TikTok
+// Retour de TikTok après autorisation
 app.get("/auth/tiktok/callback", (req, res) => {
-  const { code, state, error, error_description } = req.query;
+  const { code, error, error_description } = req.query;
 
   if (error) {
     return res.status(400).json({
       success: false,
       error,
-      description: error_description || "Autorisation TikTok refusée."
+      description: error_description || null
     });
   }
-
-  if (!state || !oauthStates.has(state)) {
-    return res.status(400).json({
-      success: false,
-      error: "State OAuth invalide ou expiré."
-    });
-  }
-
-  oauthStates.delete(state);
 
   if (!code) {
     return res.status(400).json({
       success: false,
-      error: "Code d'autorisation TikTok manquant."
+      error: "Code d'autorisation TikTok absent"
     });
   }
 
-  // À l'étape suivante, ce code sera échangé
-  // côté serveur contre un access token TikTok.
-  return res.status(200).json({
+  res.status(200).json({
     success: true,
-    message: "Retour TikTok reçu correctement."
+    message: "TikTok a bien redirigé l'utilisateur vers TokPilote.",
+    next_step: "Échange du code contre un access token."
   });
 });
 
