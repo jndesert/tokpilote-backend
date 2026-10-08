@@ -11,7 +11,7 @@ const CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY;
 const CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET;
 
 const REDIRECT_URI =
-  "https://videapilot-backend.onrender.com/auth/tiktok/callback";
+  "https://videapilot-api.onrender.com/auth/tiktok/callback";
 
 const WEBSITE_URL =
   "https://jndesert.github.io/videapilot/";
