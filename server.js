@@ -14,7 +14,7 @@ const REDIRECT_URI =
   "https://videapilot-api.onrender.com/auth/tiktok/callback";
 
 const WEBSITE_URL =
-  "https://jndesert.github.io/videapilot/";
+  "https://videapilot.fr/";
 
 app.disable("x-powered-by");
 app.use(express.json());
