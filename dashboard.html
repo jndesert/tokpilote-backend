@@ -169,6 +169,13 @@
       style="width:100%;padding:12px;margin:10px 0 20px;"
     ></textarea>
 
+    <button
+      type="button"
+      id="generate-ai-script"
+    >
+      ✨ Générer un script avec l'IA
+    </button>
+
     <label for="video-script">Script de la vidéo</label>
     <textarea
       id="video-script"
@@ -498,6 +505,57 @@ container.appendChild(item);
     container.textContent = "Erreur de chargement des projets vidéo.";
   }
 }
+// Génération de scripts vidéo avec OpenAI
+const generateAiButton = document.getElementById("generate-ai-script");
+
+generateAiButton.addEventListener("click", async () => {
+  const topicField = document.getElementById("video-topic");
+  const scriptField = document.getElementById("video-script");
+
+  const topic = topicField.value.trim();
+
+  if (!topic) {
+    alert("Veuillez saisir un sujet pour votre vidéo.");
+    topicField.focus();
+    return;
+  }
+
+  if (topic.length > 1000) {
+    alert("Le sujet ne doit pas dépasser 1000 caractères.");
+    return;
+  }
+
+  generateAiButton.disabled = true;
+  generateAiButton.textContent = "⏳ Génération en cours...";
+
+  try {
+    const response = await fetch("/api/ai/generate-script", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ topic })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || "La génération a échoué.");
+    }
+
+    scriptField.value = data.script;
+
+    alert("✨ Ton script vidéo a été généré avec succès !");
+
+  } catch (error) {
+    alert("Erreur : " + error.message);
+
+  } finally {
+    generateAiButton.disabled = false;
+    generateAiButton.textContent = "✨ Générer un script avec l'IA";
+  }
+});
 
 // Charger les projets à l'ouverture du tableau de bord
 loadVideoProjects();
