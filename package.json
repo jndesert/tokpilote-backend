@@ -1,7 +1,8 @@
+
 {
-  "name": "tokpilote-backend",
-  "version": "1.0.0",
-  "description": "Backend sécurisé de TokPilote pour l'intégration avec l'API TikTok",
+  "name": "videapilot-backend",
+  "version": "1.1.0",
+  "description": "Backend VidéaPilot avec intégration TikTok",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -11,6 +12,9 @@
   },
   "dependencies": {
     "express": "^5.1.0",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "express-session": "^1.18.2",
+    "connect-pg-simple": "^10.0.0",
+    "pg": "^8.16.3"
   }
 }
