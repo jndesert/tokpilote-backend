@@ -287,6 +287,45 @@
       block: "start"
     });
   });
+    // Enregistrer un projet vidéo dans PostgreSQL
+document.getElementById("video-form")
+  .addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const button = form.querySelector('button[type="submit"]');
+
+    const title = document.getElementById("video-title").value.trim();
+    const topic = document.getElementById("video-topic").value.trim();
+    const script = document.getElementById("video-script").value;
+
+    button.disabled = true;
+    button.textContent = "Enregistrement...";
+
+    try {
+      const response = await fetch("/api/videos", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ title, topic, script })
+      });
+
+      if (!response.ok) {
+        throw new Error("Enregistrement impossible");
+      }
+
+      alert("Votre projet vidéo a été enregistré avec succès !");
+      form.reset();
+
+    } catch (error) {
+      alert("Impossible d'enregistrer le projet. Veuillez réessayer.");
+    } finally {
+      button.disabled = false;
+      button.textContent = "Enregistrer mon projet";
+    }
+  });
 </script>
 </body>
 </html>
