@@ -3,6 +3,8 @@ require("dotenv").config();
 
 const express = require("express");
 // Connexion à la base PostgreSQL de VidéaPilot
+const { Pool } = require("pg");
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
