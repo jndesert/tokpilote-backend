@@ -164,6 +164,76 @@ app.post("/api/videos", async (req, res) => {
 });
 
 // Récupérer les projets vidéo de l'utilisateur connecté
+// Modifier un projet vidéo existant
+app.put("/api/videos/:id", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  const origin = req.get("Origin");
+  if (origin !== "https://videapilot-api.onrender.com") {
+    return res.status(403).json({
+      message: "Origine non autorisée."
+    });
+  }
+
+  const userId = req.session?.tiktokUser?.openId;
+
+  if (!userId) {
+    return res.status(401).json({
+      message: "Connexion TikTok requise."
+    });
+  }
+
+  const id = req.params.id;
+  const { title, topic, script } = req.body || {};
+
+  if (!/^[1-9]\d*$/.test(id)) {
+    return res.status(400).json({
+      message: "Identifiant de projet invalide."
+    });
+  }
+
+  if (
+    typeof title !== "string" ||
+    typeof topic !== "string" ||
+    (script !== undefined && typeof script !== "string") ||
+    !title.trim() ||
+    !topic.trim() ||
+    title.trim().length > 120 ||
+    topic.length > 5000 ||
+    (script && script.length > 20000)
+  ) {
+    return res.status(400).json({
+      message: "Informations du projet invalides."
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE video_projects
+       SET title = $1, topic = $2, script = $3
+       WHERE id = $4 AND user_id = $5
+       RETURNING id, title, topic, script, created_at`,
+      [title.trim(), topic.trim(), script || "", id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: "Projet introuvable."
+      });
+    }
+
+    return res.json({
+      success: true,
+      project: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Erreur modification projet :", error.message);
+
+    return res.status(500).json({
+      message: "Impossible de modifier le projet."
+    });
+  }
+});
 app.get("/api/videos", async (req, res) => {
   res.set("Cache-Control", "no-store");
 
