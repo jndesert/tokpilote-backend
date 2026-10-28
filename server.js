@@ -3,6 +3,7 @@ require("dotenv").config();
 
 const express = require("express");
 const crypto = require("node:crypto");
+const path = require("node:path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +28,12 @@ app.get("/", (req, res) => {
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
+});
+
+app.get("/dashboard", (req, res) => {
+  res.sendFile(
+    path.join(__dirname, "dashboard.html")
+  );
 });
 
 function readCookie(req, name) {
