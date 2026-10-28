@@ -107,11 +107,13 @@
 
       <div class="card">
         <h3>Mes vidéos</h3>
-        <p>Fonctionnalité à venir.</p>
+        <div id="video-projects-list">
+          <p>Chargement de vos projets vidéo...</p>
       </div>
+   </div>
 
-      <div class="card">
-  <h3>🎬 Créer une vidéo</h3>
+   <div class="card">
+     <h3>🎬 Créer une vidéo</h3>
 
   <p>
     Transformez votre idée en projet vidéo
@@ -318,6 +320,7 @@ document.getElementById("video-form")
 
       alert("Votre projet vidéo a été enregistré avec succès !");
       form.reset();
+      loadVideoProjects();
 
     } catch (error) {
       alert("Impossible d'enregistrer le projet. Veuillez réessayer.");
@@ -326,6 +329,53 @@ document.getElementById("video-form")
       button.textContent = "Enregistrer mon projet";
     }
   });
+
+// Afficher les projets vidéo enregistrés
+async function loadVideoProjects() {
+  const container = document.getElementById("video-projects-list");
+
+  try {
+    const response = await fetch("/api/videos", {
+      credentials: "same-origin"
+    });
+
+    if (!response.ok) {
+      throw new Error("Impossible de charger les projets");
+    }
+
+    const data = await response.json();
+    container.replaceChildren();
+
+    if (!data.projects || data.projects.length === 0) {
+      container.textContent = "Aucun projet vidéo enregistré.";
+      return;
+    }
+
+    for (const project of data.projects) {
+      const item = document.createElement("div");
+      item.style.marginBottom = "15px";
+
+      const title = document.createElement("h4");
+      title.textContent = project.title;
+
+      const topic = document.createElement("p");
+      topic.textContent = project.topic;
+
+      const date = document.createElement("small");
+      date.textContent = new Date(project.created_at)
+        .toLocaleDateString("fr-FR");
+
+      item.append(title, topic, date);
+      container.appendChild(item);
+    }
+
+  } catch (error) {
+    container.textContent = "Erreur de chargement des projets vidéo.";
+  }
+}
+
+// Charger les projets à l'ouverture du tableau de bord
+loadVideoProjects();
 </script>
 </body>
 </html>
