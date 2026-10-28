@@ -602,10 +602,8 @@ document.getElementById("test-scenes").addEventListener("click", async () => {
 
     result.textContent = JSON.stringify({
       status: response.status,
-      success: data.success,
-      nombreDeScenes: data.scenes?.length,
-      scenes: data.scenes,
-      message: data.message
+      ...data,
+      nombreDeScenes: data.scenes?.length
     }, null, 2);
 
   } catch (error) {
