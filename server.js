@@ -14,6 +14,30 @@ const PORT = process.env.PORT || 3000;
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
+
+// Création de la table des projets vidéo
+async function initializeVideoProjects() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS video_projects (
+      id BIGSERIAL PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title VARCHAR(120) NOT NULL,
+      topic TEXT NOT NULL,
+      script TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  console.log("Table des projets vidéo prête");
+}
+
+initializeVideoProjects().catch((error) => {
+  console.error(
+    "Erreur initialisation projets vidéo :",
+    error.message
+  );
+});
+
 // Sessions sécurisées stockées dans PostgreSQL
 app.set("trust proxy", 1);
 
