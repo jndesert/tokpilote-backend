@@ -4,10 +4,16 @@ const express = require("express");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
 const { Pool } = require("pg");
+// SDK OpenAI pour la génération de scripts vidéo
+const OpenAI = require("openai");
 const crypto = require("node:crypto");
 const path = require("node:path");
 
 const app = express();
+// Connexion sécurisée à l'API OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 const PORT = process.env.PORT || 3000;
 
 // Connexion à la base PostgreSQL de VidéaPilot
@@ -288,6 +294,104 @@ app.put("/api/videos/:id", async (req, res) => {
 
     return res.status(500).json({
       message: "Impossible de modifier le projet."
+    });
+  }
+});
+
+// Générer un script vidéo avec l'intelligence artificielle
+// Limitation temporaire des générations IA par utilisateur
+const aiUsage = new Map();
+app.post("/api/ai/generate-script", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  // Vérifier l'origine de la requête
+  if (req.get("Origin") !== "https://videapilot-api.onrender.com") {
+    return res.status(403).json({
+      message: "Origine non autorisée."
+    });
+  }
+
+  // Vérifier la connexion TikTok
+  if (!req.session?.tiktokUser?.openId) {
+    return res.status(401).json({
+      message: "Connexion TikTok requise."
+    });
+  }
+
+  // Vérifier le sujet
+  const { topic } = req.body || {};
+
+  if (
+    typeof topic !== "string" ||
+    !topic.trim() ||
+    topic.trim().length > 1000
+  ) {
+    return res.status(400).json({
+      message: "Veuillez saisir un sujet valide (1000 caractères maximum)."
+    });
+  }
+
+    // Limiter les générations IA à 5 par heure
+  const userId = req.session.tiktokUser.openId;
+  const now = Date.now();
+  const hour = 60 * 60 * 1000;
+
+  const usage = aiUsage.get(userId) || {
+    count: 0,
+    start: now
+  };
+
+  if (now - usage.start >= hour) {
+    usage.count = 0;
+    usage.start = now;
+  }
+
+  if (usage.count >= 5) {
+    return res.status(429).json({
+      message: "Limite atteinte : 5 générations IA par heure."
+    });
+  }
+
+  usage.count++;
+  aiUsage.set(userId, usage);
+
+  try {
+    const response = await openai.responses.create({
+      model: "gpt-5-mini",
+      instructions: `Tu es un scénariste professionnel spécialisé
+dans les vidéos YouTube, TikTok et Instagram.
+
+Crée un script original en français, adapté au sujet fourni.
+
+Structure obligatoire :
+1. Titre accrocheur
+2. Introduction captivante
+3. Scènes numérotées
+4. Narration et dialogues
+5. Suggestions visuelles
+6. Conclusion
+
+Produis un script clair, créatif et directement exploitable.`,
+      input: topic.trim(),
+      max_output_tokens: 1800
+    });
+
+    const script = response.output_text;
+
+    if (!script) {
+      throw new Error("Réponse IA vide.");
+    }
+
+    return res.json({
+      success: true,
+      script
+    });
+
+  } catch (error) {
+    console.error("Erreur génération IA :", error.message);
+
+    return res.status(502).json({
+      message: "La génération du script a échoué. Réessayez plus tard."
     });
   }
 });
