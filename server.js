@@ -263,6 +263,26 @@ app.get("/auth/tiktok/callback", async (req, res) => {
       }
     }
 
+        // Enregistrer le profil TikTok dans la session PostgreSQL
+    if (!profile?.open_id) {
+      return res.status(502).send(
+        "Impossible de récupérer l'identifiant TikTok. Veuillez réessayer."
+      );
+    }
+
+    req.session.tiktokUser = {
+      openId: profile.open_id,
+      displayName: profile.display_name || "Utilisateur TikTok",
+      avatarUrl: profile.avatar_url || null
+    };
+
+    await new Promise((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
+
     res.set("Cache-Control", "no-store");
 
     res.status(200).send(`
