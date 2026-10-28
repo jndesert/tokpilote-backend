@@ -1,14 +1,6 @@
-
 require("dotenv").config();
 
 const express = require("express");
-// Connexion à la base PostgreSQL de VidéaPilot
-const { Pool } = require("pg");
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
 const { Pool } = require("pg");
@@ -17,6 +9,11 @@ const path = require("node:path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Connexion à la base PostgreSQL de VidéaPilot
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 const CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY;
 const CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET;
