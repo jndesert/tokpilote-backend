@@ -162,6 +162,44 @@ app.post("/api/videos", async (req, res) => {
     });
   }
 });
+
+// Récupérer les projets vidéo de l'utilisateur connecté
+app.get("/api/videos", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  const userId = req.session?.tiktokUser?.openId;
+
+  if (!userId) {
+    return res.status(401).json({
+      message: "Connexion TikTok requise."
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT id, title, topic, script, created_at
+       FROM video_projects
+       WHERE user_id = $1
+       ORDER BY created_at DESC, id DESC`,
+      [userId]
+    );
+
+    return res.json({
+      success: true,
+      projects: result.rows
+    });
+
+  } catch (error) {
+    console.error(
+      "Erreur récupération projets vidéo :",
+      error.message
+    );
+
+    return res.status(500).json({
+      message: "Impossible de récupérer les projets vidéo."
+    });
+  }
+});
 app.get("/api/me", (req, res) => {
   res.set("Cache-Control", "no-store");
 
