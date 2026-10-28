@@ -1,0 +1,95 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1">
+  <title>Tableau de bord — VidéaPilot</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #07152e;
+      color: white;
+    }
+    header {
+      padding: 22px;
+      background: #102344;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    h1 { margin: 0; font-size: 24px; }
+    main {
+      max-width: 1050px;
+      margin: 45px auto;
+      padding: 20px;
+    }
+    .welcome {
+      background: #102344;
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 25px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns:
+        repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+    .card {
+      background: #102344;
+      border-radius: 16px;
+      padding: 25px;
+    }
+    .card h3 { color: #4ce4ed; }
+    a { color: #4ce4ed; }
+    .status { color: #b8c8de; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>VidéaPilot</h1>
+    <a href="https://videapilot.fr/">
+      Accueil
+    </a>
+  </header>
+
+  <main>
+    <section class="welcome">
+      <h2>Bienvenue dans VidéaPilot</h2>
+      <p>
+        Votre espace de création et de gestion
+        de contenus vidéo.
+      </p>
+      <p class="status">
+        Tableau de bord en cours de développement.
+      </p>
+    </section>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Mon compte TikTok</h3>
+        <p>Connexion du profil disponible.</p>
+      </div>
+
+      <div class="card">
+        <h3>Mes vidéos</h3>
+        <p>Fonctionnalité à venir.</p>
+      </div>
+
+      <div class="card">
+        <h3>Créer une vidéo</h3>
+        <p>Fonctionnalité à venir.</p>
+      </div>
+
+      <div class="card">
+        <h3>Planification</h3>
+        <p>Fonctionnalité à venir.</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
