@@ -434,8 +434,63 @@ async function loadVideoProjects() {
         });
       });
 
-      item.append(title, topic, date, editButton);
-      container.appendChild(item);
+      // Bouton pour supprimer un projet vidéo
+const deleteButton = document.createElement("button");
+deleteButton.type = "button";
+deleteButton.textContent = "🗑️ Supprimer";
+deleteButton.style.marginTop = "10px";
+deleteButton.style.marginLeft = "10px";
+deleteButton.style.padding = "8px 15px";
+deleteButton.style.cursor = "pointer";
+deleteButton.style.backgroundColor = "#dc2626";
+deleteButton.style.color = "white";
+deleteButton.style.border = "none";
+deleteButton.style.borderRadius = "6px";
+
+deleteButton.addEventListener("click", async () => {
+  const confirmed = window.confirm(
+    `Voulez-vous vraiment supprimer le projet "${project.title}" ?\n\nCette action est irréversible.`
+  );
+
+  if (!confirmed) return;
+
+  deleteButton.disabled = true;
+  deleteButton.textContent = "Suppression...";
+
+  try {
+    const response = await fetch(
+      `/api/videos/${encodeURIComponent(project.id)}`,
+      {
+        method: "DELETE",
+        credentials: "same-origin"
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Impossible de supprimer le projet.");
+    }
+
+    // Fermer le mode modification si ce projet était ouvert
+    const form = document.getElementById("video-form");
+
+    if (form.dataset.editId === String(project.id)) {
+      form.reset();
+      delete form.dataset.editId;
+    }
+
+    await loadVideoProjects();
+    alert("Projet vidéo supprimé avec succès !");
+
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    deleteButton.disabled = false;
+    deleteButton.textContent = "🗑️ Supprimer";
+  }
+});
+
+item.append(title, topic, date, editButton, deleteButton);
+container.appendChild(item);
     }
 
   } catch (error) {
