@@ -13,8 +13,7 @@ const CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET;
 const REDIRECT_URI =
   "https://videapilot-api.onrender.com/auth/tiktok/callback";
 
-const WEBSITE_URL =
-  "https://videapilot.fr/";
+const WEBSITE_URL = "https://videapilot.fr/";
 
 app.disable("x-powered-by");
 app.use(express.json());
@@ -53,6 +52,16 @@ const cookieOptions = {
   path: "/",
   maxAge: 10 * 60 * 1000
 };
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[char]);
+}
 
 app.get("/auth/tiktok", (req, res) => {
   if (!CLIENT_KEY || !CLIENT_SECRET) {
@@ -155,9 +164,69 @@ app.get("/auth/tiktok/callback", async (req, res) => {
       );
     }
 
-    // Les jetons ne sont jamais envoyés au navigateur.
-    // À terme, ils devront être conservés dans un
-    // stockage serveur sécurisé, lié à une session.
+    // Le jeton reste sur le serveur et n'est pas conservé.
+    let profile = null;
+
+    try {
+      const profileResponse = await fetch(
+        "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url",
+        {
+          headers: {
+            Authorization: `Bearer ${data.access_token}`
+          },
+          signal: AbortSignal.timeout(10000)
+        }
+      );
+
+      const profileData = await profileResponse.json();
+
+      if (
+        profileResponse.ok &&
+        profileData.data?.user &&
+        (
+          !profileData.error?.code ||
+          profileData.error.code === "ok"
+        )
+      ) {
+        profile = profileData.data.user;
+      } else {
+        console.warn("Profil TikTok indisponible", {
+          status: profileResponse.status,
+          error: profileData.error?.code || "unknown"
+        });
+      }
+    } catch (profileError) {
+      console.warn(
+        "Erreur temporaire du profil TikTok",
+        profileError.message
+      );
+    }
+
+    const name = profile?.display_name
+      ? escapeHtml(profile.display_name)
+      : null;
+
+    let avatarMarkup = "";
+
+    if (typeof profile?.avatar_url === "string") {
+      try {
+        const url = new URL(profile.avatar_url);
+
+        if (url.protocol === "https:") {
+          avatarMarkup = `
+            <img
+              src="${escapeHtml(url.href)}"
+              alt="Photo de profil TikTok"
+              width="96"
+              height="96"
+              style="border-radius:50%;object-fit:cover"
+            >
+          `;
+        }
+      } catch {
+        // URL invalide : aucune image affichée.
+      }
+    }
 
     res.set("Cache-Control", "no-store");
 
@@ -168,6 +237,7 @@ app.get("/auth/tiktok/callback", async (req, res) => {
         <meta charset="UTF-8">
         <meta name="viewport"
               content="width=device-width, initial-scale=1">
+        <meta name="referrer" content="no-referrer">
         <title>VidéaPilot — Connexion TikTok</title>
       </head>
       <body style="
@@ -179,13 +249,35 @@ app.get("/auth/tiktok/callback", async (req, res) => {
       ">
         <h1>VidéaPilot</h1>
         <h2>Connexion TikTok autorisée</h2>
+
+        ${
+          profile
+            ? `
+              <section>
+                ${avatarMarkup}
+                <p>
+                  ${
+                    name
+                      ? `Bienvenue, <strong>${name}</strong> !`
+                      : "Profil TikTok récupéré."
+                  }
+                </p>
+              </section>
+            `
+            : `
+              <p>
+                Connexion réussie. Les informations
+                du profil ne sont pas disponibles
+                pour le moment.
+              </p>
+            `
+        }
+
         <p>
-          Le serveur a obtenu une autorisation TikTok.
+          Cette version ne conserve pas encore
+          votre session de connexion.
         </p>
-        <p>
-          Cette démonstration ne conserve pas
-          encore votre session de connexion.
-        </p>
+
         <a href="${WEBSITE_URL}"
            style="color:#4ce4ed">
           Retourner à VidéaPilot
@@ -193,9 +285,11 @@ app.get("/auth/tiktok/callback", async (req, res) => {
       </body>
       </html>
     `);
-
   } catch (err) {
-    console.error("Erreur de connexion TikTok", err.message);
+    console.error(
+      "Erreur de connexion TikTok",
+      err.message
+    );
 
     res.status(502).send(
       "Erreur temporaire de connexion TikTok."
