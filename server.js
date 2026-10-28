@@ -489,26 +489,37 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     });
   }
 
-  // Découper le scénario en scènes
-  // Extraire les scènes numérotées du scénario
-const scenePattern = /^\s*(?:Scène|Scene)\s*\d+\s*[:.\-–]/gim;
+  // Identifier les scènes, avec ou sans Markdown ou numérotation préalable.
+  const scenePattern = /^[ \t]*(?:#{1,6}[ \t]*)?(?:\d+[).][ \t]*)?(?:\*{1,2})?(?:Scène|Scene)[ \t]+\d+[ \t]*[:.\-–—]/gim;
 
-const matches = [...script.matchAll(scenePattern)];
+  // Privilégier la partie contenant les dialogues plutôt que le sommaire.
+  const detailsMatch = /^\s*(?:#{1,6}\s*)?(?:\*{1,2})?4[.)]\s*(?:\*{1,2})?Narration et dialogues\b/im.exec(script);
+  const source = detailsMatch ? script.slice(detailsMatch.index) : script;
+  const matches = [...source.matchAll(scenePattern)];
 
-const scenes = matches.slice(0, 30).map((match, index) => {
-  const start = match.index;
-  const end = matches[index + 1]?.index ?? script.length;
+  // En l'absence de scènes détaillées, revenir à la liste des scènes.
+  const selectedSource = matches.length ? source : script;
+  const selectedMatches = matches.length ? matches : [...script.matchAll(scenePattern)];
 
-  return {
-    number: index + 1,
-    content: script.slice(start, end).trim()
-  };
-});
+  const scenes = selectedMatches.slice(0, 30).map((match, index) => {
+    const start = match.index;
+    const next = selectedMatches[index + 1]?.index ?? selectedSource.length;
+    // Ne pas inclure les sections suivantes dans la dernière scène.
+    const tail = selectedSource.slice(start, next);
+    const nextSection = /^\s*(?:#{1,6}\s*)?(?:\*{1,2})?[5-9][.)]\s+(?:Suggestions visuelles|Conclusion|Musique|Hashtags)\b/im.exec(tail);
+    const content = nextSection ? tail.slice(0, nextSection.index).trim() : tail.trim();
+    return { number: index + 1, content };
+  }).filter(scene => scene.content);
 
-  return res.json({
-    success: true,
-    scenes
-  });
+  if (scenes.length === 0) {
+    return res.status(422).json({
+      success: false,
+      message: "Aucune scène reconnue. Utilisez des titres comme Scène 1 — ...",
+      scenes: []
+    });
+  }
+
+  return res.json({ success: true, scenes });
 });
 app.get("/api/videos", async (req, res) => {
   res.set("Cache-Control", "no-store");
@@ -862,8 +873,7 @@ app.get("/auth/tiktok/callback", async (req, res) => {
         }
 
         <p>
-          Cette version ne conserve pas encore
-          votre session de connexion.
+          Votre session de connexion est enregistrée de manière sécurisée.
         </p>
 
         <a href="${WEBSITE_URL}"
@@ -890,3 +900,4 @@ app.listen(PORT, () => {
     `VidéaPilot Backend démarré sur le port ${PORT}`
   );
 });
+
