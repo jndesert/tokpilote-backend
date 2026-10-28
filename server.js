@@ -71,6 +71,28 @@ app.get("/dashboard", (req, res) => {
   );
 });
 
+// Profil TikTok de l'utilisateur connecté
+app.get("/api/me", (req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  const user = req.session?.tiktokUser;
+
+  if (!user?.openId) {
+    return res.status(401).json({
+      authenticated: false,
+      message: "Utilisateur non connecté"
+    });
+  }
+
+  res.json({
+    authenticated: true,
+    user: {
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl
+    }
+  });
+});
+
 function readCookie(req, name) {
   const cookies = (req.headers.cookie || "").split(";");
 
