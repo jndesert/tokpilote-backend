@@ -70,10 +70,21 @@
     </section>
 
     <div class="grid">
-      <div class="card">
-        <h3>Mon compte TikTok</h3>
-        <p>Connexion du profil disponible.</p>
-      </div>
+    <div class="card">
+      <h3>Mon compte TikTok</h3>
+
+      <img
+        id="tiktok-avatar"
+        alt="Photo de profil TikTok"
+        width="80"
+        height="80"
+        referrerpolicy="no-referrer"
+        style="border-radius:50%;object-fit:cover;display:none"
+      >
+
+      <p id="tiktok-name">Chargement du profil...</p>
+      <p id="tiktok-status" class="status"></p>
+    </div>
 
       <div class="card">
         <h3>Mes vidéos</h3>
@@ -91,5 +102,58 @@
       </div>
     </div>
   </main>
+  <script>
+  async function loadTikTokProfile() {
+    const nameElement = document.getElementById("tiktok-name");
+    const statusElement = document.getElementById("tiktok-status");
+    const avatarElement = document.getElementById("tiktok-avatar");
+
+    try {
+      const response = await fetch("/api/me", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+
+      if (response.status === 401) {
+        window.location.replace("/auth/tiktok");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("Profil indisponible");
+      }
+
+      const data = await response.json();
+
+      if (!data.authenticated || !data.user) {
+        throw new Error("Session invalide");
+      }
+
+      nameElement.textContent =
+        data.user.displayName || "Utilisateur TikTok";
+
+      statusElement.textContent = "✓ Compte TikTok connecté";
+
+      if (typeof data.user.avatarUrl === "string") {
+        try {
+          const url = new URL(data.user.avatarUrl);
+
+          if (url.protocol === "https:") {
+            avatarElement.src = url.href;
+            avatarElement.style.display = "block";
+          }
+        } catch {
+          // L'avatar reste masqué si son URL est invalide.
+        }
+      }
+    } catch (error) {
+      nameElement.textContent = "Profil temporairement indisponible";
+      statusElement.textContent =
+        "Impossible de charger les informations du compte.";
+    }
+  }
+
+  loadTikTokProfile();
+</script>
 </body>
 </html>
