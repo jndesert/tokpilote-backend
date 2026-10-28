@@ -519,7 +519,60 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     });
   }
 
-  return res.json({ success: true, scenes });
+  // Diagnostic local : aucun appel à OpenAI.
+  // expectedScenes est facultatif et permet de comparer avec l'objectif choisi.
+  const { expectedScenes } = req.body || {};
+  if (expectedScenes !== undefined &&
+      (!Number.isInteger(expectedScenes) || expectedScenes < 1 || expectedScenes > 30)) {
+    return res.status(400).json({
+      success: false,
+      message: "expectedScenes doit être un entier compris entre 1 et 30."
+    });
+  }
+
+  const warnings = [];
+  const detectedNumbers = selectedMatches.slice(0, 30).map(match => {
+    const heading = match[0].match(/(?:Scène|Scene)[ \t]+(\d+)/i);
+    return heading ? Number(heading[1]) : null;
+  }).filter(Number.isInteger);
+  const uniqueNumbers = [...new Set(detectedNumbers)].sort((a, b) => a - b);
+  const missingNumbers = [];
+  for (let n = 1; n <= Math.min(30, Math.max(0, ...uniqueNumbers)); n++) {
+    if (!uniqueNumbers.includes(n)) missingNumbers.push(n);
+  }
+  if (missingNumbers.length) {
+    warnings.push(`Numéros de scènes absents : ${missingNumbers.join(", ")}.`);
+  }
+  if (uniqueNumbers.length !== detectedNumbers.length) {
+    warnings.push("Certains numéros de scènes sont répétés.");
+  }
+  if (expectedScenes !== undefined && scenes.length < expectedScenes) {
+    warnings.push(`Seulement ${scenes.length} scène(s) sur ${expectedScenes} attendue(s).`);
+  }
+
+  const lastContent = scenes.at(-1)?.content.trim() || "";
+  const lastLine = lastContent.split(/\r?\n/).map(line => line.trim()).filter(Boolean).at(-1) || "";
+  if (/[:;,—–-]$/.test(lastLine) ||
+      /^(?:Narrateur|Dialogue|Voisin|Léo|Clara|Maman|Coach)\s*$/i.test(lastLine) ||
+      (lastLine.includes('"') && (lastLine.match(/"/g) || []).length % 2 !== 0)) {
+    warnings.push("La dernière scène semble se terminer au milieu d'une phrase ou d'un dialogue.");
+  }
+  const hasConclusion = /^\s*(?:#{1,6}\s*)?(?:\*{1,2})?6[.)]\s*(?:\*{1,2})?Conclusion\b/im.test(script);
+  if (/Narration et dialogues/i.test(script) && !hasConclusion) {
+    warnings.push("La section « 6. Conclusion » est absente du scénario.");
+  }
+
+  return res.json({
+    success: true,
+    scenes,
+    diagnostic: {
+      sceneCount: scenes.length,
+      expectedScenes: expectedScenes ?? null,
+      missingNumbers,
+      potentiallyIncomplete: warnings.length > 0,
+      warnings
+    }
+  });
 });
 app.get("/api/videos", async (req, res) => {
   res.set("Cache-Control", "no-store");
@@ -900,4 +953,6 @@ app.listen(PORT, () => {
     `VidéaPilot Backend démarré sur le port ${PORT}`
   );
 });
+
+
 
