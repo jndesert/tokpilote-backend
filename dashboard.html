@@ -561,5 +561,60 @@ generateAiButton.addEventListener("click", async () => {
 loadVideoProjects();
 
 </script>
+  <!-- Test temporaire du découpage des scènes -->
+<div style="margin:20px; padding:15px; border:1px solid #ccc; border-radius:10px;">
+  <button type="button" id="test-scenes">
+    Tester le découpage des scènes
+  </button>
+
+  <pre id="test-scenes-result"
+       style="white-space:pre-wrap;overflow-wrap:anywhere;"></pre>
+</div>
+
+<script>
+document.getElementById("test-scenes").addEventListener("click", async () => {
+  const result = document.getElementById("test-scenes-result");
+
+  const script = `Titre : Léo, le petit super-héros
+
+Introduction : Léo rêve de voler.
+
+Scène 1 : Le grand rêve
+Léo regarde les oiseaux dans le ciel.
+
+Scène 2 : La peur
+Léo hésite à s'envoler.
+
+Scène 3 : Le courage
+Léo réussit son premier vol.`;
+
+  result.textContent = "Test en cours...";
+
+  try {
+    const response = await fetch("/api/ai/prepare-scenes", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({ script })
+    });
+
+    const data = await response.json();
+
+    result.textContent = JSON.stringify({
+      status: response.status,
+      success: data.success,
+      nombreDeScenes: data.scenes?.length,
+      scenes: data.scenes,
+      message: data.message
+    }, null, 2);
+
+  } catch (error) {
+    result.textContent = "Erreur : " + error.message;
+  }
+});
+</script>
+  
 </body>
 </html>
