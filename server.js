@@ -458,6 +458,58 @@ Produis un script clair, créatif et directement exploitable.`,
     });
   }
 });
+// Préparer les scènes d'une vidéo à partir d'un scénario
+app.post("/api/ai/prepare-scenes", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  // Vérifier l'origine
+  if (req.get("Origin") !== "https://videapilot-api.onrender.com") {
+    return res.status(403).json({
+      message: "Origine non autorisée."
+    });
+  }
+
+  // Vérifier la connexion TikTok
+  if (!req.session?.tiktokUser?.openId) {
+    return res.status(401).json({
+      message: "Connexion TikTok requise."
+    });
+  }
+
+  // Vérifier le scénario
+  const { script } = req.body || {};
+
+  if (
+    typeof script !== "string" ||
+    !script.trim() ||
+    script.length > 20000
+  ) {
+    return res.status(400).json({
+      message: "Scénario invalide (20000 caractères maximum)."
+    });
+  }
+
+  // Découper le scénario en scènes
+  // Extraire les scènes numérotées du scénario
+const scenePattern = /^\s*(?:Scène|Scene)\s*\d+\s*[:.\-–]/gim;
+
+const matches = [...script.matchAll(scenePattern)];
+
+const scenes = matches.slice(0, 30).map((match, index) => {
+  const start = match.index;
+  const end = matches[index + 1]?.index ?? script.length;
+
+  return {
+    number: index + 1,
+    content: script.slice(start, end).trim()
+  };
+});
+
+  return res.json({
+    success: true,
+    scenes
+  });
+});
 app.get("/api/videos", async (req, res) => {
   res.set("Cache-Control", "no-store");
 
