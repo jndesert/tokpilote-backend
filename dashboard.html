@@ -282,6 +282,13 @@
     document.getElementById("video-form-section");
 
   createVideoButton.addEventListener("click", () => {
+    // Revenir en mode création
+    const form = document.getElementById("video-form");
+
+    form.reset();
+    delete form.dataset.editId;
+
+    // Afficher le formulaire vierge
     videoFormSection.style.display = "block";
 
     videoFormSection.scrollIntoView({
@@ -289,7 +296,8 @@
       block: "start"
     });
   });
-    // Enregistrer un projet vidéo dans PostgreSQL
+
+ // Enregistrer ou modifier un projet vidéo dans PostgreSQL
 document.getElementById("video-form")
   .addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -301,29 +309,49 @@ document.getElementById("video-form")
     const topic = document.getElementById("video-topic").value.trim();
     const script = document.getElementById("video-script").value;
 
+    const editId = form.dataset.editId;
+
     button.disabled = true;
-    button.textContent = "Enregistrement...";
+    button.textContent = editId
+      ? "Modification..."
+      : "Enregistrement...";
 
     try {
-      const response = await fetch("/api/videos", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ title, topic, script })
-      });
+      const response = await fetch(
+        editId ? `/api/videos/${encodeURIComponent(editId)}` : "/api/videos",
+        {
+          method: editId ? "PUT" : "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ title, topic, script })
+        }
+      );
 
-      if (!response.ok) {
-        throw new Error("Enregistrement impossible");
+      if (response.status === 401) {
+        window.location.href = "/auth/tiktok";
+        return;
       }
 
-      alert("Votre projet vidéo a été enregistré avec succès !");
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || "Enregistrement impossible.");
+      }
+
+      alert(
+        editId
+          ? "Votre projet vidéo a été modifié avec succès !"
+          : "Votre projet vidéo a été enregistré avec succès !"
+      );
+
       form.reset();
-      loadVideoProjects();
+      delete form.dataset.editId;
+
+      await loadVideoProjects();
 
     } catch (error) {
-      alert("Impossible d'enregistrer le projet. Veuillez réessayer.");
+      alert(error.message || "Une erreur est survenue.");
     } finally {
       button.disabled = false;
       button.textContent = "Enregistrer mon projet";
@@ -334,19 +362,35 @@ document.getElementById("video-form")
 async function loadVideoProjects() {
   const container = document.getElementById("video-projects-list");
 
+  if (!container) {
+    console.error("Zone Mes vidéos introuvable.");
+    return;
+  }
+
   try {
     const response = await fetch("/api/videos", {
-      credentials: "same-origin"
+      credentials: "same-origin",
+      cache: "no-store"
     });
 
+    if (response.status === 401) {
+      window.location.href = "/auth/tiktok";
+      return;
+    }
+
     if (!response.ok) {
-      throw new Error("Impossible de charger les projets");
+      throw new Error("Impossible de charger les projets.");
     }
 
     const data = await response.json();
+
+    if (!Array.isArray(data.projects)) {
+      throw new Error("Format de réponse invalide.");
+    }
+
     container.replaceChildren();
 
-    if (!data.projects || data.projects.length === 0) {
+    if (data.projects.length === 0) {
       container.textContent = "Aucun projet vidéo enregistré.";
       return;
     }
@@ -365,17 +409,44 @@ async function loadVideoProjects() {
       date.textContent = new Date(project.created_at)
         .toLocaleDateString("fr-FR");
 
-      item.append(title, topic, date);
+      // Bouton pour modifier le projet
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.textContent = "✏️ Modifier";
+      editButton.style.marginTop = "10px";
+      editButton.style.padding = "8px 15px";
+      editButton.style.cursor = "pointer";
+
+      editButton.addEventListener("click", () => {
+        const form = document.getElementById("video-form");
+        const section = document.getElementById("video-form-section");
+
+        document.getElementById("video-title").value = project.title;
+        document.getElementById("video-topic").value = project.topic;
+        document.getElementById("video-script").value = project.script || "";
+
+        form.dataset.editId = project.id;
+        section.style.display = "block";
+
+        section.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+      });
+
+      item.append(title, topic, date, editButton);
       container.appendChild(item);
     }
 
   } catch (error) {
+    console.error("Erreur Mes vidéos :", error);
     container.textContent = "Erreur de chargement des projets vidéo.";
   }
 }
 
 // Charger les projets à l'ouverture du tableau de bord
 loadVideoProjects();
+
 </script>
 </body>
 </html>
