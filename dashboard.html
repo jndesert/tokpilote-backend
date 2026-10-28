@@ -564,8 +564,8 @@ loadVideoProjects();
   <!-- Test temporaire du découpage des scènes -->
 <div style="margin:20px; padding:15px; border:1px solid #ccc; border-radius:10px;">
   <button type="button" id="test-scenes">
-    Tester le découpage des scènes
-  </button>
+  🎬 Préparer les scènes de ma vidéo
+</button>
 
   <pre id="test-scenes-result"
        style="white-space:pre-wrap;overflow-wrap:anywhere;"></pre>
@@ -575,20 +575,18 @@ loadVideoProjects();
 document.getElementById("test-scenes").addEventListener("click", async () => {
   const result = document.getElementById("test-scenes-result");
 
-  const script = `Titre : Léo, le petit super-héros
+  // Récupérer le scénario présent dans le formulaire vidéo
+  const scriptField = document.getElementById("video-script");
+  const script = scriptField?.value.trim() || "";
 
-Introduction : Léo rêve de voler.
+  // Vérifier que le scénario existe
+  if (!script) {
+    result.textContent =
+      "Veuillez d'abord générer ou saisir un scénario vidéo.";
+    return;
+  }
 
-Scène 1 : Le grand rêve
-Léo regarde les oiseaux dans le ciel.
-
-Scène 2 : La peur
-Léo hésite à s'envoler.
-
-Scène 3 : Le courage
-Léo réussit son premier vol.`;
-
-  result.textContent = "Test en cours...";
+  result.textContent = "Préparation des scènes en cours...";
 
   try {
     const response = await fetch("/api/ai/prepare-scenes", {
