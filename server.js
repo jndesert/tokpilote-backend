@@ -299,8 +299,71 @@ app.put("/api/videos/:id", async (req, res) => {
 });
 
 // Générer un script vidéo avec l'intelligence artificielle
-// Limitation temporaire des générations IA par utilisateur
-const aiUsage = new Map();
+// Créer la table des quotas de génération IA
+async function initializeAiUsage() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_usage (
+      user_id TEXT NOT NULL,
+      window_start TIMESTAMPTZ NOT NULL,
+      request_count INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id)
+    )
+  `);
+}
+
+// Initialiser la table des quotas IA au démarrage
+initializeAiUsage()
+  .then(() => {
+    console.log("Table ai_usage prête.");
+  })
+  .catch((error) => {
+    console.error(
+      "Erreur initialisation table ai_usage :",
+      error.message
+    );
+  });
+
+// Réserver une génération IA dans PostgreSQL
+async function reserveAiGeneration(userId) {
+  const result = await pool.query(
+    `
+    INSERT INTO ai_usage (
+      user_id,
+      window_start,
+      request_count
+    )
+    VALUES ($1, NOW(), 1)
+
+    ON CONFLICT (user_id)
+    DO UPDATE SET
+      window_start = CASE
+        WHEN ai_usage.window_start <= NOW() - INTERVAL '1 hour'
+        THEN NOW()
+        ELSE ai_usage.window_start
+      END,
+
+      request_count = CASE
+        WHEN ai_usage.window_start <= NOW() - INTERVAL '1 hour'
+        THEN 1
+        ELSE ai_usage.request_count + 1
+      END
+
+    WHERE
+      ai_usage.window_start <= NOW() - INTERVAL '1 hour'
+      OR ai_usage.request_count < 5
+
+    RETURNING request_count
+    `,
+    [userId]
+  );
+
+  return {
+    allowed: result.rows.length > 0,
+    count: result.rows[0]?.request_count ?? 5
+  };
+}
+
+// Génération de scripts IA avec quota PostgreSQL
 app.post("/api/ai/generate-script", async (req, res) => {
   res.set("Cache-Control", "no-store");
 
@@ -331,30 +394,30 @@ app.post("/api/ai/generate-script", async (req, res) => {
     });
   }
 
-    // Limiter les générations IA à 5 par heure
+  // Vérifier et réserver le quota IA dans PostgreSQL
   const userId = req.session.tiktokUser.openId;
-  const now = Date.now();
-  const hour = 60 * 60 * 1000;
 
-  const usage = aiUsage.get(userId) || {
-    count: 0,
-    start: now
-  };
+  try {
+    const quota = await reserveAiGeneration(userId);
 
-  if (now - usage.start >= hour) {
-    usage.count = 0;
-    usage.start = now;
-  }
+    if (!quota.allowed) {
+      return res.status(429).json({
+        message: "Limite atteinte : 5 générations IA par heure."
+      });
+    }
 
-  if (usage.count >= 5) {
-    return res.status(429).json({
-      message: "Limite atteinte : 5 générations IA par heure."
+  } catch (error) {
+    console.error(
+      "Erreur vérification quota IA :",
+      error.message
+    );
+
+    return res.status(503).json({
+      message: "Service IA temporairement indisponible."
     });
   }
-
-  usage.count++;
-  aiUsage.set(userId, usage);
-
+ 
+  // Appel à OpenAI
   try {
     const response = await openai.responses.create({
       model: "gpt-5-mini",
