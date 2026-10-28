@@ -96,6 +96,72 @@ app.get("/dashboard", (req, res) => {
 });
 
 // Profil TikTok de l'utilisateur connecté
+// Enregistrer un projet vidéo dans PostgreSQL
+app.post("/api/videos", async (req, res) => {
+  // Autoriser uniquement les requêtes provenant de VidéaPilot
+  const origin = req.get("Origin");
+
+  if (origin !== "https://videapilot-api.onrender.com") {
+    return res.status(403).json({
+      message: "Origine non autorisée."
+    });
+  }
+  res.set("Cache-Control", "no-store");
+
+  const userId = req.session?.tiktokUser?.openId;
+
+  if (!userId) {
+    return res.status(401).json({
+      message: "Connexion TikTok requise."
+    });
+  }
+
+  const { title, topic, script } = req.body || {};
+
+  if (
+    typeof title !== "string" ||
+    typeof topic !== "string" ||
+    (script !== undefined && typeof script !== "string") ||
+    !title.trim() ||
+    !topic.trim() ||
+    title.trim().length > 120 ||
+    topic.length > 5000 ||
+    (script && script.length > 20000)
+  ) {
+    return res.status(400).json({
+      message: "Informations du projet invalides."
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO video_projects
+       (user_id, title, topic, script)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, title, created_at`,
+      [
+        userId,
+        title.trim(),
+        topic.trim(),
+        script || ""
+      ]
+    );
+
+    return res.status(201).json({
+      success: true,
+      project: result.rows[0]
+    });
+  } catch (error) {
+    console.error(
+      "Erreur enregistrement projet vidéo :",
+      error.message
+    );
+
+    return res.status(500).json({
+      message: "Impossible d'enregistrer le projet."
+    });
+  }
+});
 app.get("/api/me", (req, res) => {
   res.set("Cache-Control", "no-store");
 
