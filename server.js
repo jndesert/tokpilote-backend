@@ -93,6 +93,36 @@ app.get("/api/me", (req, res) => {
   });
 });
 
+// Déconnexion sécurisée de VidéaPilot
+app.post("/auth/logout", (req, res) => {
+  // Refuser les demandes provenant d'un autre site
+  const origin = req.get("Origin");
+
+  if (origin !== "https://videapilot-api.onrender.com") {
+    return res.status(403).json({
+      message: "Origine non autorisée."
+    });
+  }
+  
+  req.session.destroy((err) => {
+    if (err) {
+      return res.status(500).json({
+        message: "Déconnexion impossible."
+      });
+    }
+
+    res.clearCookie("connect.sid", {
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax"
+    });
+
+    res.set("Cache-Control", "no-store");
+    res.json({ success: true });
+  });
+});
+
 function readCookie(req, name) {
   const cookies = (req.headers.cookie || "").split(";");
 
