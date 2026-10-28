@@ -111,15 +111,86 @@
       </div>
 
       <div class="card">
-        <h3>Créer une vidéo</h3>
-        <p>Fonctionnalité à venir.</p>
-      </div>
+  <h3>🎬 Créer une vidéo</h3>
+
+  <p>
+    Transformez votre idée en projet vidéo
+    avec VidéaPilot.
+  </p>
+
+  <button
+    id="create-video-button"
+    type="button"
+    style="
+      background:#4ce4ed;
+      color:#07152e;
+      border:none;
+      border-radius:8px;
+      padding:12px 18px;
+      cursor:pointer;
+      font-weight:bold;
+    "
+  >
+    + Nouvelle vidéo
+  </button>
+</div>
 
       <div class="card">
         <h3>Planification</h3>
         <p>Fonctionnalité à venir.</p>
       </div>
     </div>
+    <section
+  id="video-form-section"
+  class="welcome"
+  style="display:none;margin-top:25px;"
+>
+  <h2>🎬 Nouvelle vidéo</h2>
+
+  <form id="video-form">
+    <label for="video-title">Titre de la vidéo</label>
+    <input
+      id="video-title"
+      type="text"
+      placeholder="Ex. Léo, le petit super-héros"
+      maxlength="120"
+      required
+      style="width:100%;padding:12px;margin:10px 0 20px;"
+    >
+
+    <label for="video-topic">Sujet de la vidéo</label>
+    <textarea
+      id="video-topic"
+      placeholder="Décris ton idée de vidéo..."
+      rows="4"
+      required
+      style="width:100%;padding:12px;margin:10px 0 20px;"
+    ></textarea>
+
+    <label for="video-script">Script de la vidéo</label>
+    <textarea
+      id="video-script"
+      placeholder="Écris ici ton scénario..."
+      rows="6"
+      style="width:100%;padding:12px;margin:10px 0 20px;"
+    ></textarea>
+
+    <button
+      type="submit"
+      style="
+        background:#4ce4ed;
+        color:#07152e;
+        border:0;
+        border-radius:8px;
+        padding:12px 20px;
+        cursor:pointer;
+        font-weight:bold;
+      "
+    >
+      Enregistrer mon projet
+    </button>
+  </form>
+</section>
   </main>
   <script>
   async function loadTikTokProfile() {
@@ -200,6 +271,22 @@
         alert("Déconnexion impossible. Veuillez réessayer.");
       }
     });
+    
+  // Afficher le formulaire de création vidéo
+  const createVideoButton =
+    document.getElementById("create-video-button");
+
+  const videoFormSection =
+    document.getElementById("video-form-section");
+
+  createVideoButton.addEventListener("click", () => {
+    videoFormSection.style.display = "block";
+
+    videoFormSection.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  });
 </script>
 </body>
 </html>
