@@ -58,7 +58,14 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+// Tableau de bord accessible uniquement aux utilisateurs connectés
 app.get("/dashboard", (req, res) => {
+  if (!req.session?.tiktokUser?.openId) {
+    return res.redirect("/auth/tiktok");
+  }
+
+  res.set("Cache-Control", "no-store");
+
   res.sendFile(
     path.join(__dirname, "dashboard.html")
   );
