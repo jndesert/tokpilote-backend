@@ -680,6 +680,26 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
    const characters = [...new Set(
      dialogues.map(dialogue => dialogue.speaker)
    )];
+    
+   const voiceProfiles = characters.map(character => {
+     const voiceId = character
+       .normalize("NFD")
+       .replace(/[\u0300-\u036f]/g, "")
+       .toLowerCase()
+       .replace(/[^a-z0-9]+/g, "_")
+       .replace(/^_+|_+$/g, "");
+
+     return {
+       character,
+       voiceId,
+       emotions: [...new Set(
+         dialogues
+           .filter(dialogue => dialogue.speaker === character)
+           .map(dialogue => dialogue.emotion)
+           .filter(Boolean)
+       )]
+     };
+   });
 
     return {
       number: index + 1,
@@ -689,7 +709,8 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
       endSeconds,
       durationSeconds,
       dialogues,
-      characters
+      characters,
+      voiceProfiles
     };
 
   }).filter(scene => scene.content);
