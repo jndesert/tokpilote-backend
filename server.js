@@ -732,6 +732,30 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     ).values()
   ];
 
+  
+  // Préparation des dialogues pour la synthèse vocale.
+  // Aucun appel API : uniquement une transformation locale.
+
+  const audioSegments = scenes.flatMap(scene =>
+    (scene.dialogues || []).map((dialogue, index) => {
+      const voiceProfile = (scene.voiceProfiles || [])
+        .find(profile => profile.character === dialogue.speaker);
+
+      return {
+        segmentId: `scene_${scene.number}_dialogue_${index + 1}`,
+        sceneNumber: scene.number,
+        order: index + 1,
+        character: dialogue.speaker,
+        voiceId: voiceProfile?.voiceId || null,
+        voiceConfig: voiceProfile?.voiceConfig || null,
+        emotion: dialogue.emotion || null,
+        text: dialogue.text,
+        audioStatus: "pending"
+      };
+    })
+  );
+
+
   if (scenes.length === 0) {
     return res.status(422).json({
       success: false,
@@ -819,6 +843,7 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     success: true,
     scenes,
     voiceCatalog,
+    audioSegments,
     diagnostic: {
       sceneCount: scenes.length,
       expectedScenes: expectedScenes ?? null,
