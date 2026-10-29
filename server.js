@@ -1,6 +1,10 @@
 require("dotenv").config();
 
 const { getVoiceConfig } = require("./voice-config");
+const {
+  AUDIO_ENGINE_CONFIG,
+  prepareAudioJobs
+} = require("./audio-engine");
 const express = require("express");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
@@ -1056,7 +1060,9 @@ const audioGenerationPlan = adjustedAudioSegments.map(segment => ({
   outputFileName: segment.audioFileName,
   status: "pending"
 }));
- 
+  
+const audioJobs = prepareAudioJobs(audioGenerationPlan);
+  
   return res.json({
     success: true,
     scenes,
@@ -1066,6 +1072,7 @@ const audioGenerationPlan = adjustedAudioSegments.map(segment => ({
     adjustedTimeline,
     adjustedAudioSegments,
     audioGenerationPlan,
+    audioEngineConfig: AUDIO_ENGINE_CONFIG,
     diagnostic: {
       sceneCount: scenes.length,
       expectedScenes: expectedScenes ?? null,
