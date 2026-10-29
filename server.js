@@ -956,12 +956,39 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     };
   });
   
+  // Chronologie ajustée du film.
+  // Les horaires originaux restent inchangés.
+
+  let adjustedCursor = 0;
+
+  const adjustedTimeline = audioTimingDiagnostic.map(scene => {
+    const adjustedDurationSeconds = Math.max(
+      scene.availableSeconds ?? 0,
+      scene.recommendedDurationSeconds
+    );
+
+    const adjustedStartSeconds = adjustedCursor;
+    const adjustedEndSeconds =
+      adjustedStartSeconds + adjustedDurationSeconds;
+
+    adjustedCursor = adjustedEndSeconds;
+
+    return {
+      sceneNumber: scene.sceneNumber,
+      adjustedStartSeconds,
+      adjustedEndSeconds,
+      adjustedDurationSeconds
+    };
+  });
+
+  
   return res.json({
     success: true,
     scenes,
     voiceCatalog,
     audioSegments,
     audioTimingDiagnostic,
+    adjustedTimeline,
     diagnostic: {
       sceneCount: scenes.length,
       expectedScenes: expectedScenes ?? null,
