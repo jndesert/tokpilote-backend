@@ -816,6 +816,9 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     sceneCount: scenes.length,
     voiceCatalogCount: voiceCatalog.length
   });
+  
+  res.set("X-VideaPilot-Voice-Catalog", String(voiceCatalog.length));
+
 
   
   return res.json({
