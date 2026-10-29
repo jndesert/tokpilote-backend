@@ -985,35 +985,63 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
   // la chronologie ajustée du film.
   // Aucun fichier audio n'est généré.
 
-  const adjustedAudioSegments = adjustedTimeline.flatMap(scene => {
-    const segments = audioSegments.filter(
-      segment => segment.sceneNumber === scene.sceneNumber
-    );
+  
+const adjustedAudioSegments = adjustedTimeline.flatMap(scene => {
+  const segments = audioSegments.filter(
+    segment => segment.sceneNumber === scene.sceneNumber
+  );
 
-    let cursor = scene.adjustedStartSeconds;
+  const totalDialogueSeconds = segments.reduce(
+    (total, segment) =>
+      total + segment.estimatedDurationSeconds,
+    0
+  );
 
-    return segments.map(segment => {
-      const adjustedAudioStartSeconds =
-        Math.round(cursor * 100) / 100;
+  const availablePauseSeconds = Math.max(
+    0,
+    scene.adjustedDurationSeconds - totalDialogueSeconds
+  );
 
-      const adjustedAudioEndSeconds =
-        Math.round(
-          (adjustedAudioStartSeconds +
-            segment.estimatedDurationSeconds) * 100
-        ) / 100;
+  // Réserver une partie de la marge en fin de scène.
+  // Répartir le reste entre les dialogues.
+  const pauseBudgetSeconds = availablePauseSeconds * 0.7;
 
-      cursor = adjustedAudioEndSeconds;
+  const pauseBetweenDialoguesSeconds =
+    segments.length > 1
+      ? pauseBudgetSeconds / (segments.length - 1)
+      : 0;
 
-      return {
-        ...segment,
-        adjustedAudioStartSeconds,
-        adjustedAudioEndSeconds,
-        exceedsAdjustedSceneDuration:
-          adjustedAudioEndSeconds > scene.adjustedEndSeconds
-      };
-    });
+  let cursor = scene.adjustedStartSeconds;
+
+  return segments.map((segment, index) => {
+    const adjustedAudioStartSeconds =
+      Math.round(cursor * 100) / 100;
+
+    const adjustedAudioEndSeconds =
+      Math.round(
+        (adjustedAudioStartSeconds +
+          segment.estimatedDurationSeconds) * 100
+      ) / 100;
+
+    const pauseAfterSeconds =
+      index < segments.length - 1
+        ? Math.round(pauseBetweenDialoguesSeconds * 100) / 100
+        : 0;
+
+    cursor =
+      adjustedAudioEndSeconds + pauseAfterSeconds;
+
+    return {
+      ...segment,
+      adjustedAudioStartSeconds,
+      adjustedAudioEndSeconds,
+      pauseAfterSeconds,
+      exceedsAdjustedSceneDuration:
+        adjustedAudioEndSeconds > scene.adjustedEndSeconds
+    };
   });
- 
+});
+
   return res.json({
     success: true,
     scenes,
