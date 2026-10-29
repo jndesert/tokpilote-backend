@@ -980,8 +980,40 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
       adjustedDurationSeconds
     };
   });
-
   
+  // Synchronisation estimée des dialogues avec
+  // la chronologie ajustée du film.
+  // Aucun fichier audio n'est généré.
+
+  const adjustedAudioSegments = adjustedTimeline.flatMap(scene => {
+    const segments = audioSegments.filter(
+      segment => segment.sceneNumber === scene.sceneNumber
+    );
+
+    let cursor = scene.adjustedStartSeconds;
+
+    return segments.map(segment => {
+      const adjustedAudioStartSeconds =
+        Math.round(cursor * 100) / 100;
+
+      const adjustedAudioEndSeconds =
+        Math.round(
+          (adjustedAudioStartSeconds +
+            segment.estimatedDurationSeconds) * 100
+        ) / 100;
+
+      cursor = adjustedAudioEndSeconds;
+
+      return {
+        ...segment,
+        adjustedAudioStartSeconds,
+        adjustedAudioEndSeconds,
+        exceedsAdjustedSceneDuration:
+          adjustedAudioEndSeconds > scene.adjustedEndSeconds
+      };
+    });
+  });
+ 
   return res.json({
     success: true,
     scenes,
@@ -989,6 +1021,7 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     audioSegments,
     audioTimingDiagnostic,
     adjustedTimeline,
+    adjustedAudioSegments,
     diagnostic: {
       sceneCount: scenes.length,
       expectedScenes: expectedScenes ?? null,
