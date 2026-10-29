@@ -768,7 +768,8 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
         voiceId: voiceProfile?.voiceId || null,
         voiceConfig: voiceProfile?.voiceConfig || null,
         emotion: dialogue.emotion || null,
-        text: dialogue.text,
+        text: dialogue.text,        
+        estimatedDurationSeconds: estimateDialogueDuration(dialogue.text),
         audioStatus: "pending",
         audioFileName: `scene_${scene.number}_dialogue_${index + 1}.mp3`
       };
