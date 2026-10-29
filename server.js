@@ -745,6 +745,8 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
         segmentId: `scene_${scene.number}_dialogue_${index + 1}`,
         sceneNumber: scene.number,
         order: index + 1,
+        sceneStartSeconds: scene.startSeconds ?? null,
+        sceneEndSeconds: scene.endSeconds ?? null,
         character: dialogue.speaker,
         voiceId: voiceProfile?.voiceId || null,
         voiceConfig: voiceProfile?.voiceConfig || null,
