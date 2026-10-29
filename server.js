@@ -714,6 +714,20 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     };
 
   }).filter(scene => scene.content);
+  
+  const voiceCatalog = [
+    ...new Map(
+      scenes
+        .flatMap(scene => scene.voiceProfiles || [])
+        .map(profile => [
+          profile.voiceId,
+          {
+            character: profile.character,
+            voiceId: profile.voiceId
+          }
+        ])
+    ).values()
+  ];
 
   if (scenes.length === 0) {
     return res.status(422).json({
