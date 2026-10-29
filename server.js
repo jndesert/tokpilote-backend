@@ -5,6 +5,12 @@ const {
   AUDIO_ENGINE_CONFIG,
   prepareAudioJobs
 } = require("./audio-engine");
+
+const {
+  AUDIO_SAFETY_CONFIG,
+  assertAudioGenerationAllowed
+} = require("./audio-safety");
+
 const express = require("express");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
@@ -1128,6 +1134,26 @@ const voiceCompatibilityDiagnostic = {
 voiceCompatibilityDiagnostic.configuredVoicesValid =
   voiceCompatibilityDiagnostic.invalidVoices.length === 0;
   
+const audioSafetyDiagnostic = {
+  generationEnabled: AUDIO_SAFETY_CONFIG.enabled,
+  maxCharactersPerRequest:
+    AUDIO_SAFETY_CONFIG.maxCharactersPerRequest,
+  maxSegmentsPerRequest:
+    AUDIO_SAFETY_CONFIG.maxSegmentsPerRequest,
+  generationBlocked: !AUDIO_SAFETY_CONFIG.enabled
+};
+
+try {
+  assertAudioGenerationAllowed({
+    text: "Bonjour ! Je m'appelle Léo.",
+    segmentCount: 1
+  });
+
+  audioSafetyDiagnostic.testResult = "allowed";
+} catch (error) {
+  audioSafetyDiagnostic.testResult = error.message;
+}
+  
 const audioTestPreview = {
   provider: "openai",
   model: "gpt-4o-mini-tts",
@@ -1157,6 +1183,7 @@ const audioTestPreview = {
     audioReadinessDiagnostic,
     voiceCompatibilityDiagnostic,
     audioTestPreview,
+    audioSafetyDiagnostic,
     diagnostic: {
       sceneCount: scenes.length,
       expectedScenes: expectedScenes ?? null,
