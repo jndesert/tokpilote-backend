@@ -752,30 +752,70 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     return Math.round(estimatedSeconds * 100) / 100;
   }
 
+  // Préparation et synchronisation estimée des dialogues.
+  // Aucun appel API et aucune génération audio.
 
-  const audioSegments = scenes.flatMap(scene =>
-    (scene.dialogues || []).map((dialogue, index) => {
+  const audioSegments = scenes.flatMap(scene => {
+    const dialogues = scene.dialogues || [];
+    const sceneStart = scene.startSeconds;
+    const sceneEnd = scene.endSeconds;
+
+    const hasValidTiming =
+      Number.isFinite(sceneStart) &&
+      Number.isFinite(sceneEnd) &&
+      sceneEnd >= sceneStart;
+
+    let currentTime = hasValidTiming ? sceneStart : null;
+
+    return dialogues.map((dialogue, index) => {
       const voiceProfile = (scene.voiceProfiles || [])
         .find(profile => profile.character === dialogue.speaker);
+
+      const estimatedDurationSeconds =
+        estimateDialogueDuration(dialogue.text);
+
+      const audioStartSeconds = currentTime;
+
+      const audioEndSeconds =
+        currentTime === null
+          ? null
+          : Math.round(
+              (currentTime + estimatedDurationSeconds) * 100
+            ) / 100;
+
+      const exceedsSceneDuration =
+        hasValidTiming &&
+        audioEndSeconds > sceneEnd;
+
+      if (hasValidTiming) {
+        currentTime = audioEndSeconds;
+      }
 
       return {
         segmentId: `scene_${scene.number}_dialogue_${index + 1}`,
         sceneNumber: scene.number,
         order: index + 1,
-        sceneStartSeconds: scene.startSeconds ?? null,
-        sceneEndSeconds: scene.endSeconds ?? null,
+
+        sceneStartSeconds: sceneStart ?? null,
+        sceneEndSeconds: sceneEnd ?? null,
+
         character: dialogue.speaker,
         voiceId: voiceProfile?.voiceId || null,
         voiceConfig: voiceProfile?.voiceConfig || null,
         emotion: dialogue.emotion || null,
-        text: dialogue.text,        
-        estimatedDurationSeconds: estimateDialogueDuration(dialogue.text),
-        audioStatus: "pending",
-        audioFileName: `scene_${scene.number}_dialogue_${index + 1}.mp3`
-      };
-    })
-  );
+        text: dialogue.text,
 
+        estimatedDurationSeconds,
+        audioStartSeconds,
+        audioEndSeconds,
+        exceedsSceneDuration,
+
+        audioStatus: "pending",
+        audioFileName:
+          `scene_${scene.number}_dialogue_${index + 1}.mp3`
+      };
+    });
+  });
 
   if (scenes.length === 0) {
     return res.status(422).json({
