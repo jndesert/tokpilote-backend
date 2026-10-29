@@ -661,11 +661,20 @@ document.getElementById("complete-script").addEventListener("click", async () =>
       return;
     }
 
-    scriptField.value = data.script;
-    scriptField.dispatchEvent(new Event("input", { bubbles: true }));
+    
+scriptField.value = data.script;
+scriptField.dispatchEvent(new Event("input", { bubbles: true }));
 
-    result.textContent =
-      "Scénario complété. Vérifiez le texte avant de préparer les scènes.";
+const form = document.getElementById("video-form");
+
+if (!form.dataset.editId) {
+  result.textContent =
+    "Scénario complété. Cliquez sur « Enregistrer mon projet » pour le sauvegarder.";
+} else {
+  result.textContent =
+    "Scénario complété. Enregistrement du projet en cours...";
+  form.requestSubmit();
+}  
 
   } catch (error) {
     result.textContent = "Erreur : " + error.message;
