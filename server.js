@@ -1128,6 +1128,20 @@ const voiceCompatibilityDiagnostic = {
 voiceCompatibilityDiagnostic.configuredVoicesValid =
   voiceCompatibilityDiagnostic.invalidVoices.length === 0;
   
+const audioTestPreview = {
+  provider: "openai",
+  model: "gpt-4o-mini-tts",
+  voice: "echo",
+  character: "Léo",
+  language: "fr",
+  text: "Bonjour ! Je m'appelle Léo.",
+  outputFormat: "mp3",
+  estimatedCharacters: 26,
+  simulationMode: true,
+  execute: false,
+  status: "preview_only"
+};
+  
   return res.json({
     success: true,
     scenes,
@@ -1142,6 +1156,7 @@ voiceCompatibilityDiagnostic.configuredVoicesValid =
     voiceAssignmentDiagnostic,
     audioReadinessDiagnostic,
     voiceCompatibilityDiagnostic,
+    audioTestPreview,
     diagnostic: {
       sceneCount: scenes.length,
       expectedScenes: expectedScenes ?? null,
