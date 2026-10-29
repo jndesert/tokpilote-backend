@@ -812,6 +812,12 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
 
   const readyForProduction = blockingReasons.length === 0;
   
+  console.log("VIDEAPILOT_VOICE_CATALOG_CHECK", {
+    sceneCount: scenes.length,
+    voiceCatalogCount: voiceCatalog.length
+  });
+
+  
   return res.json({
     success: true,
     scenes,
