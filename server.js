@@ -1063,6 +1063,18 @@ const audioGenerationPlan = adjustedAudioSegments.map(segment => ({
   
 const audioJobs = prepareAudioJobs(audioGenerationPlan);
   
+const voiceAssignmentDiagnostic = [
+  ...new Map(
+    audioJobs.map(job => [job.voiceId, job.voiceMapping])
+  ).entries()
+].map(([voiceId, mapping]) => ({
+  voiceId,
+  character: mapping?.character || null,
+  style: mapping?.style || null,
+  assignedVoice: mapping?.voice || null,
+  needsVoiceAssignment: !mapping?.voice
+}));
+  
   return res.json({
     success: true,
     scenes,
@@ -1074,6 +1086,7 @@ const audioJobs = prepareAudioJobs(audioGenerationPlan);
     audioGenerationPlan,
     audioEngineConfig: AUDIO_ENGINE_CONFIG,
     audioJobs,
+    voiceAssignmentDiagnostic,
     diagnostic: {
       sceneCount: scenes.length,
       expectedScenes: expectedScenes ?? null,
