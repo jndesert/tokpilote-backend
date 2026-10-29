@@ -618,7 +618,39 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     const tail = selectedSource.slice(start, next);
     const nextSection = /^\s*(?:#{1,6}\s*)?(?:\*{1,2})?[5-9][.)]\s+(?:Suggestions visuelles|Conclusion|Musique|Hashtags)\b/im.exec(tail);
     const content = nextSection ? tail.slice(0, nextSection.index).trim() : tail.trim();
-    return { number: index + 1, content };
+    
+    const heading = content.split("\n")[0] || "";
+
+    const titleMatch = heading.match(
+      /^(?:Scène|Scene)\s+\d+\s*[—–:.-]\s*(.*?)(?:\s*\((\d+):(\d+)\s*[–—-]\s*(\d+):(\d+)\))?\s*$/i
+    );
+
+    const title = titleMatch?.[1]?.trim() || heading;
+
+    const startSeconds = titleMatch?.[2] !== undefined
+      ? Number(titleMatch[2]) * 60 + Number(titleMatch[3])
+      : null;
+
+    const endSeconds = titleMatch?.[4] !== undefined
+      ? Number(titleMatch[4]) * 60 + Number(titleMatch[5])
+      : null;
+
+    const durationSeconds =
+      startSeconds !== null &&
+      endSeconds !== null &&
+      endSeconds > startSeconds
+        ? endSeconds - startSeconds
+        : null;
+
+    return {
+      number: index + 1,
+      title,
+      content,
+      startSeconds,
+      endSeconds,
+      durationSeconds
+    };
+
   }).filter(scene => scene.content);
 
   if (scenes.length === 0) {
