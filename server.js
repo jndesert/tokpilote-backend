@@ -815,6 +815,7 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
   return res.json({
     success: true,
     scenes,
+    voiceCatalog,
     diagnostic: {
       sceneCount: scenes.length,
       expectedScenes: expectedScenes ?? null,
