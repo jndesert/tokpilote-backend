@@ -11,6 +11,11 @@ const {
   assertAudioGenerationAllowed
 } = require("./audio-safety");
 
+const {
+  TTS_CONFIG,
+  prepareTtsRequest
+} = require("./audio-tts");
+
 const express = require("express");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
@@ -1194,6 +1199,24 @@ try {
   audioSafetyDiagnostic.testResult = error.message;
 }
   
+const ttsEngineDiagnostic = {
+  provider: TTS_CONFIG.provider,
+  model: TTS_CONFIG.model,
+  voice: TTS_CONFIG.voice,
+  format: TTS_CONFIG.format,
+  enabled: TTS_CONFIG.enabled,
+  requestPrepared: false,
+  testResult: null
+};
+
+try {
+  prepareTtsRequest("Bonjour ! Je m'appelle Léo.");
+  ttsEngineDiagnostic.requestPrepared = true;
+  ttsEngineDiagnostic.testResult = "allowed";
+} catch (error) {
+  ttsEngineDiagnostic.testResult = error.message;
+}
+  
 const audioTestPreview = {
   provider: "openai",
   model: "gpt-4o-mini-tts",
@@ -1224,6 +1247,7 @@ const audioTestPreview = {
     voiceCompatibilityDiagnostic,
     audioTestPreview,
     audioSafetyDiagnostic,
+    ttsEngineDiagnostic,
     diagnostic: {
       sceneCount: scenes.length,
       expectedScenes: expectedScenes ?? null,
