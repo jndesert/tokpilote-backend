@@ -667,12 +667,18 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
       (lastLine.includes('"') && (lastLine.match(/"/g) || []).length % 2 !== 0)) {
     warnings.push("La dernière scène semble se terminer au milieu d'une phrase ou d'un dialogue.");
   }
-  const hasConclusion = /^\s*(?:#{1,6}\s*)?(?:\*{1,2})?6[.)]\s*(?:\*{1,2})?Conclusion\b/im.test(script);
-  if (/Narration et dialogues/i.test(script) && !hasConclusion) {
-    warnings.push("La section « 6. Conclusion » est absente du scénario.");
+  
+  const hasConclusion =
+    /^\s*(?:#{1,6}\s*)?(?:\*{1,2})?(?:\d+[.)]\s*)?Conclusion\b/im.test(script) ||
+    /(?:Scène|Scene)\s*\d+\s*[—–:-]\s*[^\n]*(?:bilan|épilogue|epilogue|conclusion|dénouement|denouement|fin de l'histoire)/im.test(script);
+
+  if (!hasConclusion) {
+    warnings.push(
+      "Aucune section de conclusion reconnue dans le scénario."
+    );
   }
 
-    const blockingReasons = [];
+  const blockingReasons = [];
 
   if (missingNumbers.length > 0) {
     blockingReasons.push("Des numéros de scènes sont manquants.");
