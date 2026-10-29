@@ -476,6 +476,98 @@ Produis un script clair, créatif et directement exploitable.`,
     });
   }
 });
+
+/**
+ * Compléter un scénario interrompu.
+ * Un appel OpenAI est effectué uniquement sur demande.
+ */
+app.post("/api/ai/complete-script", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  if (req.get("Origin") !== "https://videapilot-api.onrender.com") {
+    return res.status(403).json({
+      message: "Origine non autorisée."
+    });
+  }
+
+  const userId = req.session?.tiktokUser?.openId;
+
+  if (!userId) {
+    return res.status(401).json({
+      message: "Connexion TikTok requise."
+    });
+  }
+
+  const { script } = req.body || {};
+
+  if (
+    typeof script !== "string" ||
+    !script.trim() ||
+    script.length > 15000
+  ) {
+    return res.status(400).json({
+      message: "Scénario invalide (15000 caractères maximum)."
+    });
+  }
+
+  try {
+    const quota = await reserveAiGeneration(userId);
+
+    if (!quota.allowed) {
+      return res.status(429).json({
+        message: "Limite atteinte : 5 générations IA par heure."
+      });
+    }
+  } catch (error) {
+    console.error("Erreur quota IA :", error.message);
+
+    return res.status(503).json({
+      message: "Service IA temporairement indisponible."
+    });
+  }
+
+  try {
+    const response = await openai.responses.create({
+      model: "gpt-5-mini",
+      instructions: `Tu es un scénariste professionnel.
+Continue le scénario français fourni à partir de sa fin.
+Ne recommence pas l'histoire.
+Ne répète pas les scènes déjà écrites.
+Termine le dialogue interrompu, puis conclus l'histoire.
+Respecte les personnages, le ton et la numérotation.
+Retourne uniquement le texte à ajouter.`,
+      input: script.trim(),
+      max_output_tokens: 1800
+    });
+
+    const continuation = response.output_text || "";
+
+    if (
+      response.status !== "completed" ||
+      !continuation.trim()
+    ) {
+      return res.status(422).json({
+        success: false,
+        incomplete: true,
+        message: "La continuation n'a pas été terminée.",
+        continuation
+      });
+    }
+
+    return res.json({
+      success: true,
+      continuation,
+      script: script.trimEnd() + "\n\n" + continuation.trim()
+    });
+  } catch (error) {
+    console.error("Erreur continuation IA :", error.message);
+
+    return res.status(502).json({
+      message: "Impossible de compléter le scénario."
+    });
+  }
+});
+
 // Préparer les scènes d'une vidéo à partir d'un scénario
 app.post("/api/ai/prepare-scenes", async (req, res) => {
   res.set("Cache-Control", "no-store");
