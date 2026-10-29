@@ -735,6 +735,23 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
   
   // Préparation des dialogues pour la synthèse vocale.
   // Aucun appel API : uniquement une transformation locale.
+  
+  // Estimation de la durée des dialogues.
+  // Hypothèse : 130 mots par minute.
+  // Cette durée sera remplacée par la durée réelle
+  // lorsque les fichiers audio seront générés.
+
+  function estimateDialogueDuration(text) {
+    if (typeof text !== "string" || !text.trim()) {
+      return 0;
+    }
+
+    const wordCount = text.trim().split(/\s+/).length;
+    const estimatedSeconds = (wordCount / 130) * 60;
+
+    return Math.round(estimatedSeconds * 100) / 100;
+  }
+
 
   const audioSegments = scenes.flatMap(scene =>
     (scene.dialogues || []).map((dialogue, index) => {
