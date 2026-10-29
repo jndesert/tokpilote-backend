@@ -562,6 +562,26 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     warnings.push("La section « 6. Conclusion » est absente du scénario.");
   }
 
+    const blockingReasons = [];
+
+  if (missingNumbers.length > 0) {
+    blockingReasons.push("Des numéros de scènes sont manquants.");
+  }
+
+  if (uniqueNumbers.length !== detectedNumbers.length) {
+    blockingReasons.push("Des numéros de scènes sont répétés.");
+  }
+
+  if (expectedScenes !== undefined && scenes.length < expectedScenes) {
+    blockingReasons.push("Le nombre de scènes attendu n'est pas atteint.");
+  }
+
+  if (warnings.some(w => w.includes("dernière scène"))) {
+    blockingReasons.push("Le dernier dialogue semble interrompu.");
+  }
+
+  const readyForProduction = blockingReasons.length === 0;
+
   return res.json({
     success: true,
     scenes,
@@ -570,10 +590,11 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
       expectedScenes: expectedScenes ?? null,
       missingNumbers,
       potentiallyIncomplete: warnings.length > 0,
-      warnings
+      warnings,
+      readyForProduction,
+      blockingReasons
     }
   });
-});
 app.get("/api/videos", async (req, res) => {
   res.set("Cache-Control", "no-store");
 
