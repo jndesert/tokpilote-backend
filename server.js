@@ -1073,6 +1073,7 @@ const audioJobs = prepareAudioJobs(audioGenerationPlan);
     adjustedAudioSegments,
     audioGenerationPlan,
     audioEngineConfig: AUDIO_ENGINE_CONFIG,
+    audioJobs,
     diagnostic: {
       sceneCount: scenes.length,
       expectedScenes: expectedScenes ?? null,
