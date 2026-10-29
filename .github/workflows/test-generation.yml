@@ -1,0 +1,26 @@
+
+name: Tests IA VideaPilot
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test-generation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verifier la syntaxe
+        run: node --check server.js
+
+      - name: Executer les tests IA
+        run: node test-generation.js
