@@ -8,7 +8,7 @@
 const VOICE_MAPPING = {
   narrateur: {
     character: "Narrateur",
-    voice: null,
+    voice: "onyx",
     style: "chaleureux et captivant"
   },
   leo: {
@@ -18,37 +18,37 @@ const VOICE_MAPPING = {
   },
   maman: {
     character: "Maman",
-    voice: null,
+    voice: "nova",
     style: "douce et rassurante"
   },
   clara: {
     character: "Clara",
-    voice: null,
+    voice: "shimmer",
     style: "joyeuse et naturelle"
   },
   coach: {
     character: "Coach",
-    voice: null,
+    voice: "coral",
     style: "encourageante et dynamique"
   },
   agent_de_comptoir: {
     character: "Agent de comptoir",
-    voice: null,
+    voice: "sage",
     style: "professionnelle et accueillante"
   },
   voisin: {
     character: "Voisin",
-    voice: null,
+    voice: "fable",
     style: "amicale et spontanée"
   },
   pilote: {
     character: "Pilote",
-    voice: null,
+    voice: "ash",
     style: "calme et assurée"
   },
   hotesse: {
     character: "Hôtesse",
-    voice: null,
+    voice: "alloy",
     style: "claire et rassurante"
   }
 };
