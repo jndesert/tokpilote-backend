@@ -580,6 +580,46 @@ Retourne uniquement le texte à ajouter.`,
 });
 
 // Préparer les scènes d'une vidéo à partir d'un scénario
+
+app.post("/api/audio/test", (req, res) => {
+  try {
+    const text = "Bonjour ! Je m'appelle Léo.";
+
+    assertAudioGenerationAllowed({
+      text,
+      segmentCount: 1
+    });
+
+    // Aucun appel OpenAI dans cette route.
+    return res.json({
+      success: true,
+      status: "safety_check_passed",
+      audioGenerated: false
+    });
+
+  } catch (error) {
+    const knownErrors = [
+      "AUDIO_GENERATION_DISABLED",
+      "AUDIO_TEXT_LIMIT_EXCEEDED",
+      "AUDIO_SEGMENT_LIMIT_EXCEEDED"
+    ];
+
+    if (!knownErrors.includes(error.message)) {
+      console.error("Audio safety error:", error);
+    }
+
+    return res.status(
+      knownErrors.includes(error.message) ? 403 : 500
+    ).json({
+      success: false,
+      error: knownErrors.includes(error.message)
+        ? error.message
+        : "INTERNAL_ERROR",
+      audioGenerated: false
+    });
+  }
+});
+
 app.post("/api/ai/prepare-scenes", async (req, res) => {
   res.set("Cache-Control", "no-store");
 
