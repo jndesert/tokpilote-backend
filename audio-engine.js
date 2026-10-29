@@ -1,5 +1,6 @@
 
 "use strict";
+const { getVoiceMapping } = require("./voice-mapping");
 
 // Moteur audio VidéaPilot
 // Mode simulation : aucun appel API payant.
@@ -41,6 +42,7 @@ function prepareAudioJob(segment) {
     segmentId,
     character,
     voiceId,
+    voiceMapping: getVoiceMapping(voiceId),
     voiceConfig,
     emotion,
     text,
