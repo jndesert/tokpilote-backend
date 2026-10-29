@@ -1063,6 +1063,34 @@ const audioGenerationPlan = adjustedAudioSegments.map(segment => ({
   
 const audioJobs = prepareAudioJobs(audioGenerationPlan);
   
+const audioReadinessDiagnostic = {
+  totalJobs: audioJobs.length,
+
+  jobsWithAssignedVoice: audioJobs.filter(
+    job =>
+      typeof job.voiceMapping?.voice === "string" &&
+      job.voiceMapping.voice.trim() !== ""
+  ).length,
+
+  jobsWithoutAssignedVoice: audioJobs.filter(
+    job =>
+      typeof job.voiceMapping?.voice !== "string" ||
+      job.voiceMapping.voice.trim() === ""
+  ).length,
+
+  simulationMode:
+    AUDIO_ENGINE_CONFIG.provider === "simulation" &&
+    AUDIO_ENGINE_CONFIG.enabled === false,
+
+  readyForAudioTesting:
+    audioJobs.length > 0 &&
+    audioJobs.every(
+      job =>
+        typeof job.voiceMapping?.voice === "string" &&
+        job.voiceMapping.voice.trim() !== ""
+    )
+};
+ 
 const voiceAssignmentDiagnostic = [
   ...new Map(
     audioJobs.map(job => [job.voiceId, job.voiceMapping])
@@ -1087,6 +1115,7 @@ const voiceAssignmentDiagnostic = [
     audioEngineConfig: AUDIO_ENGINE_CONFIG,
     audioJobs,
     voiceAssignmentDiagnostic,
+    audioReadinessDiagnostic,
     diagnostic: {
       sceneCount: scenes.length,
       expectedScenes: expectedScenes ?? null,
