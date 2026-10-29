@@ -900,11 +900,52 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
 
   const readyForProduction = blockingReasons.length === 0;
   
+  // Diagnostic global des durées audio par scène.
+  // Calcul local, sans appel à une API payante.
+
+  const audioTimingDiagnostic = scenes.map(scene => {
+    const segments = audioSegments.filter(
+      segment => segment.sceneNumber === scene.number
+    );
+
+    const estimatedAudioSeconds = Math.round(
+      segments.reduce(
+        (total, segment) =>
+          total + segment.estimatedDurationSeconds,
+        0
+      ) * 100
+    ) / 100;
+
+    const availableSeconds =
+      Number.isFinite(scene.startSeconds) &&
+      Number.isFinite(scene.endSeconds)
+        ? Math.max(0, scene.endSeconds - scene.startSeconds)
+        : null;
+
+    const overflowSeconds = availableSeconds === null
+      ? null
+      : Math.round(
+          Math.max(0, estimatedAudioSeconds - availableSeconds) * 100
+        ) / 100;
+
+    return {
+      sceneNumber: scene.number,
+      dialogueCount: segments.length,
+      availableSeconds,
+      estimatedAudioSeconds,
+      overflowSeconds,
+      needsAdjustment: overflowSeconds === null
+        ? null
+        : overflowSeconds > 0
+    };
+  });
+  
   return res.json({
     success: true,
     scenes,
     voiceCatalog,
     audioSegments,
+    audioTimingDiagnostic,
     diagnostic: {
       sceneCount: scenes.length,
       expectedScenes: expectedScenes ?? null,
