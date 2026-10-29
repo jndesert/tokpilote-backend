@@ -1103,6 +1103,31 @@ const voiceAssignmentDiagnostic = [
   needsVoiceAssignment: !mapping?.voice
 }));
   
+const allowedTtsVoices = new Set([
+  "alloy", "ash", "ballad", "coral",
+  "echo", "fable", "nova", "onyx",
+  "sage", "shimmer"
+]);
+
+const voiceCompatibilityDiagnostic = {
+  provider: "openai",
+  modelPlanned: "gpt-4o-mini-tts",
+  checkedJobs: audioJobs.length,
+
+  invalidVoices: [
+    ...new Set(
+      audioJobs
+        .map(job => job.voiceMapping?.voice)
+        .filter(voice => !allowedTtsVoices.has(voice))
+    )
+  ],
+
+  simulationMode: true
+};
+
+voiceCompatibilityDiagnostic.configuredVoicesValid =
+  voiceCompatibilityDiagnostic.invalidVoices.length === 0;
+  
   return res.json({
     success: true,
     scenes,
@@ -1116,6 +1141,7 @@ const voiceAssignmentDiagnostic = [
     audioJobs,
     voiceAssignmentDiagnostic,
     audioReadinessDiagnostic,
+    voiceCompatibilityDiagnostic,
     diagnostic: {
       sceneCount: scenes.length,
       expectedScenes: expectedScenes ?? null,
