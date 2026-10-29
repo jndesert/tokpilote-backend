@@ -1041,7 +1041,22 @@ const adjustedAudioSegments = adjustedTimeline.flatMap(scene => {
     };
   });
 });
-
+ 
+const audioGenerationPlan = adjustedAudioSegments.map(segment => ({
+  segmentId: segment.segmentId,
+  sceneNumber: segment.sceneNumber,
+  character: segment.character,
+  voiceId: segment.voiceId,
+  voiceConfig: segment.voiceConfig,
+  emotion: segment.emotion,
+  text: segment.text,
+  startSeconds: segment.adjustedAudioStartSeconds,
+  endSeconds: segment.adjustedAudioEndSeconds,
+  pauseAfterSeconds: segment.pauseAfterSeconds,
+  outputFileName: segment.audioFileName,
+  status: "pending"
+}));
+ 
   return res.json({
     success: true,
     scenes,
@@ -1050,6 +1065,7 @@ const adjustedAudioSegments = adjustedTimeline.flatMap(scene => {
     audioTimingDiagnostic,
     adjustedTimeline,
     adjustedAudioSegments,
+    audioGenerationPlan,
     diagnostic: {
       sceneCount: scenes.length,
       expectedScenes: expectedScenes ?? null,
