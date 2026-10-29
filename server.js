@@ -812,20 +812,7 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
 
   const readyForProduction = blockingReasons.length === 0;
   
-  console.log("VIDEAPILOT_VOICE_CATALOG_CHECK", {
-    sceneCount: scenes.length,
-    voiceCatalogCount: voiceCatalog.length
-  });
-  
-  res.set("X-VideaPilot-Voice-Catalog", String(voiceCatalog.length));
-
-
-  
   return res.json({
-  voiceCatalogDiagnostic: {
-    count: voiceCatalog.length,
-    firstVoiceId: voiceCatalog[0]?.voiceId ?? null
-  },
     success: true,
     scenes,
     voiceCatalog,
