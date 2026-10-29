@@ -13,7 +13,7 @@ const VOICE_MAPPING = {
   },
   leo: {
     character: "Léo",
-    voice: null,
+    voice: "echo",
     style: "jeune, expressif et attachant"
   },
   maman: {
