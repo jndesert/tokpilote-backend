@@ -690,16 +690,18 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
        .replace(/[^a-z0-9]+/g, "_")
        .replace(/^_+|_+$/g, "");
 
-     return {
-       character,
-       voiceId,
-       emotions: [...new Set(
-         dialogues
-           .filter(dialogue => dialogue.speaker === character)
-           .map(dialogue => dialogue.emotion)
-           .filter(Boolean)
-       )]
-     };
+     
+   return {
+     character,
+     voiceId,
+     voiceConfig: getVoiceConfig(voiceId),
+     emotions: [...new Set(
+       dialogues
+         .filter(dialogue => dialogue.speaker === character)
+         .map(dialogue => dialogue.emotion)
+         .filter(Boolean)
+     )]
+   };
    });
 
     return {
