@@ -691,6 +691,13 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
   }
 
   const readyForProduction = blockingReasons.length === 0;
+  
+if (!hasConclusion) {
+  blockingReasons.push(
+    "La conclusion du scénario est absente."
+  );
+}
+
 
   return res.json({
     success: true,
