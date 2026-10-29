@@ -677,6 +677,10 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
       }
     }
 
+   const characters = [...new Set(
+     dialogues.map(dialogue => dialogue.speaker)
+   )];
+
     return {
       number: index + 1,
       title,
@@ -684,7 +688,8 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
       startSeconds,
       endSeconds,
       durationSeconds,
-      dialogues
+      dialogues,
+      characters
     };
 
   }).filter(scene => scene.content);
