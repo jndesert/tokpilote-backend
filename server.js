@@ -588,6 +588,16 @@ Retourne uniquement le texte à ajouter.`,
 
 app.post("/api/audio/test", (req, res) => {
   try {
+    
+    // Vérifier la connexion TikTok
+    if (!req.session?.tiktokUser?.openId) {
+      return res.status(401).json({
+        success: false,
+        error: "TIKTOK_AUTH_REQUIRED",
+        audioGenerated: false
+      });
+    }
+
     const text = "Bonjour ! Je m'appelle Léo.";
 
     assertAudioGenerationAllowed({
