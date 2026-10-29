@@ -822,6 +822,10 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
 
   
   return res.json({
+  voiceCatalogDiagnostic: {
+    count: voiceCatalog.length,
+    firstVoiceId: voiceCatalog[0]?.voiceId ?? null
+  },
     success: true,
     scenes,
     voiceCatalog,
