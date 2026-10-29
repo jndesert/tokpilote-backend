@@ -1,5 +1,6 @@
 require("dotenv").config();
 
+const { getVoiceConfig } = require("./voice-config");
 const express = require("express");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
