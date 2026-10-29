@@ -439,10 +439,28 @@ Produis un script clair, créatif et directement exploitable.`,
       max_output_tokens: 1800
     });
 
-    const script = response.output_text;
+    const script = response.output_text || "";
 
-    if (!script) {
-      throw new Error("Réponse IA vide.");
+    const generationIncomplete =
+      response.status === "incomplete" ||
+      response.incomplete_details?.reason === "max_output_tokens";
+
+    if (generationIncomplete) {
+      console.warn("Génération IA interrompue :", {
+        status: response.status,
+        reason: response.incomplete_details?.reason
+      });
+
+      return res.status(422).json({
+        success: false,
+        incomplete: true,
+        message: "Le scénario a été interrompu avant sa fin.",
+        script
+      });
+    }
+
+    if (response.status !== "completed" || !script.trim()) {
+      throw new Error("Réponse IA non terminée ou vide.");
     }
 
     return res.json({
