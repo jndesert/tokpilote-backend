@@ -927,13 +927,29 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
       : Math.round(
           Math.max(0, estimatedAudioSeconds - availableSeconds) * 100
         ) / 100;
+    
+    const pauseMargin = 1.15;
+
+    const recommendedDurationSeconds = Math.ceil(
+      estimatedAudioSeconds * pauseMargin
+    );
+
+    const recommendedExtraSeconds =
+      availableSeconds === null
+        ? null
+        : Math.max(
+            0,
+            recommendedDurationSeconds - availableSeconds
+          );
 
     return {
       sceneNumber: scene.number,
       dialogueCount: segments.length,
       availableSeconds,
       estimatedAudioSeconds,
-      overflowSeconds,
+      overflowSeconds,     
+      recommendedDurationSeconds,
+      recommendedExtraSeconds,
       needsAdjustment: overflowSeconds === null
         ? null
         : overflowSeconds > 0
