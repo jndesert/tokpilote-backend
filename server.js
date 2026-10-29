@@ -595,6 +595,8 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
       blockingReasons
     }
   });
+});
+
 app.get("/api/videos", async (req, res) => {
   res.set("Cache-Control", "no-store");
 
