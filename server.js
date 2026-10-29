@@ -641,6 +641,41 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
       endSeconds > startSeconds
         ? endSeconds - startSeconds
         : null;
+    
+    const dialogues = [];
+
+    const lines = content.split("\n");
+
+    for (const line of lines) {
+      const match = line.trim().match(
+        /^([^:\n]+?)\s*:\s*["“](.*?)["”]\s*$/
+      );
+
+      if (!match) continue;
+
+      const speakerInfo = match[1].trim();
+      const text = match[2].trim();
+
+      const speakerMatch = speakerInfo.match(
+        /^(.+?)\s*\(([^)]+)\)$/
+      );
+
+      const speaker = speakerMatch
+        ? speakerMatch[1].trim()
+        : speakerInfo;
+
+      const emotion = speakerMatch
+        ? speakerMatch[2].trim()
+        : null;
+
+      if (speaker && text) {
+        dialogues.push({
+          speaker,
+          emotion,
+          text
+        });
+      }
+    }
 
     return {
       number: index + 1,
@@ -648,7 +683,8 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
       content,
       startSeconds,
       endSeconds,
-      durationSeconds
+      durationSeconds,
+      dialogues
     };
 
   }).filter(scene => scene.content);
