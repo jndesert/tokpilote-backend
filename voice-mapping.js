@@ -58,7 +58,30 @@ function getVoiceMapping(voiceId) {
   return VOICE_MAPPING[voiceId] || null;
 }
 
+function prepareCharacterVoice(voiceId, text) {
+  const mapping = getVoiceMapping(voiceId);
+
+  if (!mapping) {
+    throw new Error("UNKNOWN_CHARACTER_VOICE");
+  }
+
+  if (typeof text !== "string" || !text.trim()) {
+    throw new Error("INVALID_VOICE_TEXT");
+  }
+
+  return {
+    character: mapping.character,
+    voiceId,
+    voice: mapping.voice,
+    style: mapping.style,
+    text: text.trim(),
+    status: "prepared",
+    audioGenerated: false
+  };
+}
+
 module.exports = {
   VOICE_MAPPING,
-  getVoiceMapping
+  getVoiceMapping,
+  prepareCharacterVoice
 };
