@@ -737,7 +737,24 @@ document.getElementById("prepare-video-montage")
             "font-size:12px;" +
             "overflow:hidden;";
 
+          // Afficher le numéro et l'heure de début de la scène.
+          const sceneMinutes = Math.floor(scene.startSeconds / 60);
+          const sceneSeconds = Math.floor(scene.startSeconds % 60);
+
+          const sceneTime =
+            `${String(sceneMinutes).padStart(2, "0")}:` +
+            `${String(sceneSeconds).padStart(2, "0")}`;
+
           segment.textContent = `S${scene.sceneNumber}`;
+
+          const timeLabel = document.createElement("div");
+          timeLabel.textContent = sceneTime;
+          timeLabel.style.cssText =
+            "font-size:10px;" +
+            "margin-top:5px;" +
+            "color:#e2e8f0;";
+
+          segment.appendChild(timeLabel);
           segment.title =
             `${scene.title} — ${scene.durationSeconds} secondes`;
           // Rendre chaque segment cliquable.
