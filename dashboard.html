@@ -848,6 +848,32 @@ document.getElementById("prepare-video-montage")
           "cursor:pointer;";
 
         timeline.appendChild(playTimelineButton);
+        
+        // Compteur de progression de la lecture simulée.
+        const playbackCounter = document.createElement("div");
+
+        playbackCounter.style.cssText =
+          "font-size:14px;" +
+          "font-weight:bold;" +
+          "color:#2563eb;" +
+          "margin:5px 0 15px;";
+
+        const formatPlaybackTime = (totalSeconds) => {
+          const mins = Math.floor(totalSeconds / 60);
+          const secs = Math.floor(totalSeconds % 60);
+
+          return (
+            String(mins).padStart(2, "0") + ":" +
+            String(secs).padStart(2, "0")
+          );
+        };
+
+        playbackCounter.textContent =
+          "⏱ " + formatPlaybackTime(0) +
+          " / " + formatPlaybackTime(montage.totalDurationSeconds);
+
+        timeline.appendChild(playbackCounter);
+        
         // Lecture simulée de la timeline, sans vidéo ni audio.
         let playbackTimer = null;
         let playbackStartTime = 0;
@@ -869,6 +895,16 @@ document.getElementById("prepare-video-montage")
           const updatePlayback = () => {
             const elapsedSeconds =
               (Date.now() - playbackStartTime) / 1000;
+            // Actualiser le compteur pendant la lecture simulée.
+            const currentSeconds = Math.min(
+              elapsedSeconds,
+              montage.totalDurationSeconds
+            );
+
+            playbackCounter.textContent =
+              "⏱ " + formatPlaybackTime(currentSeconds) +
+              " / " + formatPlaybackTime(montage.totalDurationSeconds);
+            
 
             // Terminer la simulation.
             if (elapsedSeconds >= montage.totalDurationSeconds) {
