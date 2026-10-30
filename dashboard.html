@@ -627,6 +627,41 @@ document.getElementById("test-scenes").addEventListener("click", async () => {
 </script>
  
 <script>
+  
+document.getElementById("preview-voices")
+  ?.addEventListener("click", async () => {
+    const result = document.getElementById("preview-voices-result");
+
+    if (!result) return;
+
+    result.textContent = "Chargement des voix...";
+
+    try {
+      const response = await fetch("/api/audio/all-characters-preview", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Impossible de charger les voix");
+      }
+
+      result.textContent = data.characters
+        .map(character =>
+          `${character.character}\n` +
+          `🎙️ Voix : ${character.voice}\n` +
+          `Style : ${character.style}\n` +
+          `Statut : ${character.status}`
+        )
+        .join("\n\n");
+
+    } catch (error) {
+      result.textContent = "Erreur : " + error.message;
+    }
+  });
+
 document.getElementById("complete-script").addEventListener("click", async () => {
   const button = document.getElementById("complete-script");
   const scriptField = document.getElementById("video-script");
