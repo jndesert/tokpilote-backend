@@ -740,6 +740,30 @@ document.getElementById("prepare-video-montage")
           segment.textContent = `S${scene.sceneNumber}`;
           segment.title =
             `${scene.title} — ${scene.durationSeconds} secondes`;
+          // Rendre chaque segment cliquable.
+          segment.style.cursor = "pointer";
+
+          segment.addEventListener("click", () => {
+            const cards = timeline.querySelectorAll(".montage-scene-card");
+
+            cards.forEach(card => {
+              card.style.border = "1px solid #ddd";
+              card.style.background = "";
+            });
+
+            const selectedCard = Array.from(cards).find(
+              card => card.dataset.sceneNumber === String(scene.sceneNumber)
+            );
+
+            if (selectedCard) {
+              selectedCard.style.border = "2px solid #2563eb";
+              selectedCard.style.background = "#dbeafe";
+              selectedCard.scrollIntoView({
+                behavior: "smooth",
+                block: "center"
+              });
+            }
+          });
 
           horizontalTimeline.appendChild(segment);
         }
@@ -748,6 +772,9 @@ document.getElementById("prepare-video-montage")
 
         for (const scene of montage.timeline) {
           const card = document.createElement("div");
+          
+          card.classList.add("montage-scene-card");
+          card.dataset.sceneNumber = String(scene.sceneNumber);
 
           card.style.cssText =
             "padding:12px;margin-bottom:10px;" +
