@@ -797,11 +797,14 @@ app.get("/api/audio/preview", (req, res) => {
       error: "TIKTOK_AUTH_REQUIRED"
     });
   }
-
+  
   try {
-    const preview = previewTtsRequest(
-      "Bonjour ! Je m'appelle Léo."
-    );
+  const voiceId = req.query.voiceId || "leo";
+
+  const preview = previewTtsRequest(
+    "Bonjour ! Je m'appelle Léo.",
+    voiceId
+  );
 
     return res.json({
       success: true,
