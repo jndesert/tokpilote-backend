@@ -325,6 +325,16 @@ async function initializeAiUsage() {
       PRIMARY KEY (user_id)
     )
   `);
+  
+  // Table de suivi des générations audio
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS audio_usage (
+      user_id TEXT NOT NULL,
+      window_start TIMESTAMPTZ NOT NULL,
+      request_count INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id)
+    )
+  `);
 }
 
 // Initialiser la table des quotas IA au démarrage
@@ -588,7 +598,6 @@ Retourne uniquement le texte à ajouter.`,
 
 app.post("/api/audio/test", (req, res) => {
   try {
-    
     // Vérifier la connexion TikTok
     if (!req.session?.tiktokUser?.openId) {
       return res.status(401).json({
