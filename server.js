@@ -672,6 +672,35 @@ Retourne uniquement le texte à ajouter.`,
 
 // Préparer les scènes d'une vidéo à partir d'un scénario
 
+app.get("/api/audio/quota", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  // Vérifier la connexion TikTok
+  if (!req.session?.tiktokUser?.openId) {
+    return res.status(401).json({
+      success: false,
+      error: "TIKTOK_AUTH_REQUIRED"
+    });
+  }
+
+  try {
+    const userId = req.session.tiktokUser.openId;
+    const quota = await getAudioQuotaStatus(userId);
+
+    return res.json({
+      success: true,
+      quota,
+      audioGenerationEnabled: false
+    });
+  } catch (error) {
+    console.error("Erreur consultation quota audio :", error);
+
+    return res.status(503).json({
+      success: false,
+      error: "AUDIO_QUOTA_UNAVAILABLE"
+    });
+  }
+});
 
 app.post("/api/audio/test", async (req, res) => {
   res.set("Cache-Control", "no-store");
