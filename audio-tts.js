@@ -32,7 +32,31 @@ function prepareTtsRequest(text) {
   };
 }
 
+function previewTtsRequest(text) {
+  if (typeof text !== "string" || !text.trim()) {
+    throw new Error("AUDIO_TEXT_INVALID");
+  }
+
+  if (text.length > AUDIO_SAFETY_CONFIG.maxCharactersPerRequest) {
+    throw new Error("AUDIO_TEXT_LIMIT_EXCEEDED");
+  }
+
+  return {
+    provider: TTS_CONFIG.provider,
+    model: TTS_CONFIG.model,
+    voice: TTS_CONFIG.voice,
+    format: TTS_CONFIG.format,
+    textLength: text.length,
+    generationEnabled:
+      TTS_CONFIG.enabled && AUDIO_SAFETY_CONFIG.enabled,
+    execute: false,
+    audioGenerated: false,
+    status: "preview_only"
+  };
+}
+
 module.exports = {
   TTS_CONFIG,
-  prepareTtsRequest
+  prepareTtsRequest,
+  previewTtsRequest
 };
