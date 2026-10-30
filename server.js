@@ -428,6 +428,42 @@ async function reserveAudioGeneration(userId) {
   };
 }
 
+async function getAudioQuotaStatus(userId) {
+  const result = await pool.query(
+    `
+    SELECT
+      request_count,
+      window_start
+    FROM audio_usage
+    WHERE user_id = $1
+    `,
+    [userId]
+  );
+
+  const row = result.rows[0];
+
+  if (!row) {
+    return {
+      count: 0,
+      limit: 5,
+      remaining: 5
+    };
+  }
+
+  const windowExpired =
+    new Date(row.window_start).getTime() <=
+    Date.now() - 60 * 60 * 1000;
+
+  const count = windowExpired ? 0 : row.request_count;
+
+  return {
+    count,
+    limit: 5,
+    remaining: Math.max(0, 5 - count)
+  };
+}
+
+
 
 // Génération de scripts IA avec quota PostgreSQL
 app.post("/api/ai/generate-script", async (req, res) => {
