@@ -40,7 +40,8 @@ function prepareTtsRequest(text, voiceId = "leo") {
   };
 }
 
-function previewTtsRequest(text) {
+
+function previewTtsRequest(text, voiceId = "leo") {
   if (typeof text !== "string" || !text.trim()) {
     throw new Error("AUDIO_TEXT_INVALID");
   }
@@ -49,10 +50,19 @@ function previewTtsRequest(text) {
     throw new Error("AUDIO_TEXT_LIMIT_EXCEEDED");
   }
 
+  const { getVoiceMapping } = require("./voice-mapping");
+  const mapping = getVoiceMapping(voiceId);
+
+  if (!mapping) {
+    throw new Error("UNKNOWN_CHARACTER_VOICE");
+  }
+
   return {
     provider: TTS_CONFIG.provider,
     model: TTS_CONFIG.model,
-    voice: TTS_CONFIG.voice,
+    character: mapping.character,
+    voiceId: voiceId,
+    voice: mapping.voice,
     format: TTS_CONFIG.format,
     textLength: text.length,
     generationEnabled:
