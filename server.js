@@ -673,6 +673,47 @@ Retourne uniquement le texte à ajouter.`,
 
 // Préparer les scènes d'une vidéo à partir d'un scénario
 
+app.get("/api/audio/safety-check", (req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  if (!req.session?.tiktokUser?.openId) {
+    return res.status(401).json({
+      success: false,
+      error: "TIKTOK_AUTH_REQUIRED"
+    });
+  }
+
+  try {
+    assertAudioGenerationAllowed({
+      text: "Bonjour ! Je m'appelle Léo.",
+      segmentCount: 1
+    });
+
+    return res.json({
+      success: true,
+      safetyBlocked: false,
+      audioGenerated: false
+    });
+  } catch (error) {
+    if (error.message === "AUDIO_GENERATION_DISABLED") {
+      return res.json({
+        success: true,
+        safetyBlocked: true,
+        reason: "AUDIO_GENERATION_DISABLED",
+        audioGenerated: false
+      });
+    }
+
+    console.error("Erreur diagnostic audio :", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "AUDIO_SAFETY_CHECK_FAILED",
+      audioGenerated: false
+    });
+  }
+});
+
 app.get("/api/audio/preview", (req, res) => {
   res.set("Cache-Control", "no-store");
 
