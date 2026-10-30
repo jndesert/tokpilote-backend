@@ -1509,7 +1509,7 @@ const ttsEngineDiagnostic = {
 };
 
 try {
-  prepareTtsRequest("Bonjour ! Je m'appelle Léo.");
+  prepareTtsRequest("Bonjour ! Je m'appelle Léo.", "leo");
   ttsEngineDiagnostic.requestPrepared = true;
   ttsEngineDiagnostic.testResult = "allowed";
 } catch (error) {
