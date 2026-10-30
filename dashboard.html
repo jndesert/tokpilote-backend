@@ -571,8 +571,7 @@ loadVideoProjects();
   type="button"
   id="prepare-video-montage"
   style="margin:10px 0;padding:10px 15px;"
-  disabled
-  title="Fonctionnalité en préparation"
+  title="Préparer le plan de montage vidéo"
 >
   🎞️ Préparer le montage vidéo
 </button>  
@@ -633,6 +632,62 @@ document.getElementById("test-scenes").addEventListener("click", async () => {
     result.textContent = "Erreur : " + error.message;
   }
 });
+</script>
+ 
+<script>
+
+  
+<script>
+document.getElementById("prepare-video-montage")
+  ?.addEventListener("click", async () => {
+    const result = document.getElementById("test-scenes-result");
+    const scriptField = document.getElementById("video-script");
+    const script = scriptField?.value.trim() || "";
+
+    if (!result) return;
+
+    if (!script) {
+      result.textContent =
+        "Veuillez d'abord saisir ou charger un scénario vidéo.";
+      return;
+    }
+
+    result.textContent = "Préparation du plan de montage...";
+
+    try {
+      const response = await fetch("/api/ai/prepare-scenes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({ script })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.videoMontagePlan?.success) {
+        throw new Error(
+          data.error || "Impossible de préparer le montage."
+        );
+      }
+
+      const montage = data.videoMontagePlan;
+
+      result.textContent = JSON.stringify({
+        success: true,
+        status: montage.status,
+        totalScenes: montage.totalScenes,
+        totalDurationSeconds: montage.totalDurationSeconds,
+        timeline: montage.timeline,
+        videoGenerated: false,
+        audioGenerated: false
+      }, null, 2);
+
+    } catch (error) {
+      result.textContent = "Erreur : " + error.message;
+    }
+  });
 </script>
  
 <script>
