@@ -636,9 +636,12 @@ Retourne uniquement le texte à ajouter.`,
 
 // Préparer les scènes d'une vidéo à partir d'un scénario
 
-app.post("/api/audio/test", (req, res) => {
+
+app.post("/api/audio/test", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+
   try {
-    // Vérifier la connexion TikTok
+    // 1. Vérifier l'authentification TikTok
     if (!req.session?.tiktokUser?.openId) {
       return res.status(401).json({
         success: false,
@@ -647,6 +650,7 @@ app.post("/api/audio/test", (req, res) => {
       });
     }
 
+    // 2. Vérifier les limites et le verrou audio
     const text = "Bonjour ! Je m'appelle Léo.";
 
     assertAudioGenerationAllowed({
@@ -654,10 +658,37 @@ app.post("/api/audio/test", (req, res) => {
       segmentCount: 1
     });
 
-    // Aucun appel OpenAI dans cette route.
+    // 3. Vérifier et réserver le quota PostgreSQL
+    const userId = req.session.tiktokUser.openId;
+
+    let quota;
+
+    try {
+      quota = await reserveAudioGeneration(userId);
+    } catch (quotaError) {
+      console.error("Erreur quota audio :", quotaError);
+
+      return res.status(503).json({
+        success: false,
+        error: "AUDIO_QUOTA_UNAVAILABLE",
+        audioGenerated: false
+      });
+    }
+
+    if (!quota.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: "AUDIO_QUOTA_EXCEEDED",
+        message: "Limite atteinte : 5 demandes audio par heure.",
+        audioGenerated: false
+      });
+    }
+
+    // 4. Aucun appel OpenAI pour le moment
     return res.json({
       success: true,
-      status: "safety_check_passed",
+      status: "audio_quota_reserved",
+      quotaCount: quota.count,
       audioGenerated: false
     });
 
@@ -669,7 +700,7 @@ app.post("/api/audio/test", (req, res) => {
     ];
 
     if (!knownErrors.includes(error.message)) {
-      console.error("Audio safety error:", error);
+      console.error("Audio test error:", error);
     }
 
     return res.status(
