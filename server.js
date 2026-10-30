@@ -13,7 +13,8 @@ const {
 
 const {
   TTS_CONFIG,
-  prepareTtsRequest
+  prepareTtsRequest,
+  previewTtsRequest
 } = require("./audio-tts");
 
 const express = require("express");
@@ -671,6 +672,35 @@ Retourne uniquement le texte à ajouter.`,
 });
 
 // Préparer les scènes d'une vidéo à partir d'un scénario
+
+app.get("/api/audio/preview", (req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  if (!req.session?.tiktokUser?.openId) {
+    return res.status(401).json({
+      success: false,
+      error: "TIKTOK_AUTH_REQUIRED"
+    });
+  }
+
+  try {
+    const preview = previewTtsRequest(
+      "Bonjour ! Je m'appelle Léo."
+    );
+
+    return res.json({
+      success: true,
+      preview
+    });
+  } catch (error) {
+    console.error("Erreur aperçu audio :", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "AUDIO_PREVIEW_FAILED"
+    });
+  }
+});
 
 app.get("/api/audio/quota", async (req, res) => {
   res.set("Cache-Control", "no-store");
