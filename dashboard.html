@@ -848,6 +848,63 @@ document.getElementById("prepare-video-montage")
           "cursor:pointer;";
 
         timeline.appendChild(playTimelineButton);
+        // Lecture simulée de la timeline, sans vidéo ni audio.
+        let playbackTimer = null;
+        let playbackStartTime = 0;
+
+        playTimelineButton.addEventListener("click", () => {
+
+          // Arrêter la lecture en cours.
+          if (playbackTimer !== null) {
+            clearInterval(playbackTimer);
+            playbackTimer = null;
+            playTimelineButton.textContent = "▶ Lire la timeline";
+            return;
+          }
+
+          // Démarrer la lecture depuis le début.
+          playbackStartTime = Date.now();
+          playTimelineButton.textContent = "■ Arrêter la lecture";
+
+          const updatePlayback = () => {
+            const elapsedSeconds =
+              (Date.now() - playbackStartTime) / 1000;
+
+            // Terminer la simulation.
+            if (elapsedSeconds >= montage.totalDurationSeconds) {
+              clearInterval(playbackTimer);
+              playbackTimer = null;
+              playTimelineButton.textContent = "▶ Lire la timeline";
+              return;
+            }
+
+            // Trouver la scène correspondant au temps écoulé.
+            const activeScene = montage.timeline.find(scene =>
+              elapsedSeconds >= scene.startSeconds &&
+              elapsedSeconds < scene.endSeconds
+            );
+
+            if (!activeScene) return;
+
+            // Sélectionner visuellement le segment correspondant.
+            const segments = Array.from(horizontalTimeline.children);
+            const activeSegment = segments.find(segment =>
+              segment.textContent.startsWith(`S${activeScene.sceneNumber}\n`) ||
+              segment.firstChild?.textContent === `S${activeScene.sceneNumber}`
+            );
+
+            if (
+              activeSegment &&
+              activeSegment.style.background !== "rgb(249, 115, 22)" &&
+              activeSegment.style.background !== "#f97316"
+            ) {
+              activeSegment.click();
+            }
+          };
+
+          updatePlayback();
+          playbackTimer = setInterval(updatePlayback, 1000);
+        });
 
         for (const scene of montage.timeline) {
           const card = document.createElement("div");
