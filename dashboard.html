@@ -722,7 +722,25 @@ document.getElementById("prepare-video-montage")
             `Fin : ${scene.endSeconds} s | ` +
             `Durée : ${scene.durationSeconds} s`;
 
-          card.append(title, details);
+          // Barre visuelle proportionnelle à la durée de la scène.
+          const durationBar = document.createElement("div");
+
+          const totalDuration = Math.max(1, montage.totalDurationSeconds);
+          const percentage = Math.max(
+            0,
+            Math.min(100, (scene.durationSeconds / totalDuration) * 100)
+          );
+
+          durationBar.style.cssText =
+            "height:18px;" +
+            "margin-top:10px;" +
+            "border-radius:6px;" +
+            "background:#2563eb;" +
+            "width:" + percentage + "%;";
+
+          durationBar.title = `${scene.durationSeconds} secondes`;
+
+          card.append(title, details, durationBar);
           timeline.appendChild(card);
         }
 
