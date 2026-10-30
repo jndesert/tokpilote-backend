@@ -830,6 +830,24 @@ document.getElementById("prepare-video-montage")
         timeline.appendChild(timeMarkers);
 
         timeline.appendChild(horizontalTimeline);
+        // Bouton de lecture simulée du montage.
+        const playTimelineButton = document.createElement("button");
+
+        playTimelineButton.type = "button";
+        playTimelineButton.textContent = "▶ Lire la timeline";
+
+        playTimelineButton.style.cssText =
+          "background:#16a34a;" +
+          "color:white;" +
+          "border:none;" +
+          "border-radius:8px;" +
+          "padding:12px 20px;" +
+          "margin:10px 0 20px;" +
+          "font-size:14px;" +
+          "font-weight:bold;" +
+          "cursor:pointer;";
+
+        timeline.appendChild(playTimelineButton);
 
         for (const scene of montage.timeline) {
           const card = document.createElement("div");
