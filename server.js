@@ -389,6 +389,46 @@ async function reserveAiGeneration(userId) {
   };
 }
 
+async function reserveAudioGeneration(userId) {
+  const result = await pool.query(
+    `
+    INSERT INTO audio_usage (
+      user_id,
+      window_start,
+      request_count
+    )
+    VALUES ($1, NOW(), 1)
+
+    ON CONFLICT (user_id)
+    DO UPDATE SET
+      window_start = CASE
+        WHEN audio_usage.window_start <= NOW() - INTERVAL '1 hour'
+        THEN NOW()
+        ELSE audio_usage.window_start
+      END,
+
+      request_count = CASE
+        WHEN audio_usage.window_start <= NOW() - INTERVAL '1 hour'
+        THEN 1
+        ELSE audio_usage.request_count + 1
+      END
+
+    WHERE
+      audio_usage.window_start <= NOW() - INTERVAL '1 hour'
+      OR audio_usage.request_count < 5
+
+    RETURNING request_count
+    `,
+    [userId]
+  );
+
+  return {
+    allowed: result.rows.length > 0,
+    count: result.rows[0]?.request_count ?? 5
+  };
+}
+
+
 // Génération de scripts IA avec quota PostgreSQL
 app.post("/api/ai/generate-script", async (req, res) => {
   res.set("Cache-Control", "no-store");
