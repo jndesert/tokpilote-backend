@@ -755,6 +755,20 @@ document.getElementById("prepare-video-montage")
             "color:#e2e8f0;";
 
           segment.appendChild(timeLabel);
+          
+          // Afficher la durée de la scène.
+          const durationLabel = document.createElement("div");
+
+          durationLabel.textContent = `${scene.durationSeconds} s`;
+
+          durationLabel.style.cssText =
+            "font-size:10px;" +
+            "margin-top:3px;" +
+            "color:#ffffff;" +
+            "font-weight:bold;";
+
+          segment.appendChild(durationLabel);
+          
           segment.title =
             `${scene.title} — ${scene.durationSeconds} secondes`;
           // Rendre chaque segment cliquable.
