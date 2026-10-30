@@ -1045,7 +1045,6 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
        .replace(/[^a-z0-9]+/g, "_")
        .replace(/^_+|_+$/g, "");
 
-     
    return {
      character,
      voiceId,
