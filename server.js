@@ -1,5 +1,10 @@
 require("dotenv").config();
 
+const {
+  VIDEO_ENGINE_CONFIG,
+  prepareVideoMontage
+} = require("./video-engine");
+
 const { getVoiceConfig } = require("./voice-config");
 const {
   AUDIO_ENGINE_CONFIG,
