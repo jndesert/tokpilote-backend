@@ -744,6 +744,16 @@ document.getElementById("prepare-video-montage")
           segment.style.cursor = "pointer";
 
           segment.addEventListener("click", () => {
+            // Réinitialiser la couleur de tous les segments.
+            const allSegments = horizontalTimeline.children;
+
+            Array.from(allSegments).forEach((item, index) => {
+              item.style.background =
+                (index + 1) % 2 === 0 ? "#1d4ed8" : "#2563eb";
+            });
+
+            // Mettre en orange le segment sélectionné.
+            segment.style.background = "#f97316";
             const cards = timeline.querySelectorAll(".montage-scene-card");
 
             cards.forEach(card => {
