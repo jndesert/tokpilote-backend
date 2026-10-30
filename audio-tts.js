@@ -14,7 +14,8 @@ const TTS_CONFIG = Object.freeze({
   enabled: false
 });
 
-function prepareTtsRequest(text) {
+
+function prepareTtsRequest(text, voiceId = "leo") {
   if (!TTS_CONFIG.enabled || !AUDIO_SAFETY_CONFIG.enabled) {
     throw new Error("AUDIO_GENERATION_DISABLED");
   }
@@ -24,9 +25,16 @@ function prepareTtsRequest(text) {
     segmentCount: 1
   });
 
+  const { getVoiceMapping } = require("./voice-mapping");
+  const mapping = getVoiceMapping(voiceId);
+
+  if (!mapping) {
+    throw new Error("UNKNOWN_CHARACTER_VOICE");
+  }
+
   return {
     model: TTS_CONFIG.model,
-    voice: TTS_CONFIG.voice,
+    voice: mapping.voice,
     input: text,
     response_format: TTS_CONFIG.format
   };
