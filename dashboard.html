@@ -704,6 +704,47 @@ document.getElementById("prepare-video-montage")
           `${minutes} min ${String(seconds).padStart(2, "0")} s`;
 
         timeline.replaceChildren();
+        // Timeline horizontale du montage vidéo.
+        const horizontalTimeline = document.createElement("div");
+
+        horizontalTimeline.style.cssText =
+          "display:flex;" +
+          "width:100%;" +
+          "min-height:65px;" +
+          "margin:15px 0;" +
+          "border:1px solid #ccc;" +
+          "border-radius:8px;" +
+          "overflow:hidden;";
+
+        const totalSeconds = Math.max(1, montage.totalDurationSeconds);
+
+        for (const scene of montage.timeline) {
+          const segment = document.createElement("div");
+
+          const percentage =
+            (scene.durationSeconds / totalSeconds) * 100;
+
+          segment.style.cssText =
+            "flex:0 0 " + percentage + "%;" +
+            "min-width:0;" +
+            "box-sizing:border-box;" +
+            "padding:8px 2px;" +
+            "background:" +
+              (scene.sceneNumber % 2 === 0 ? "#1d4ed8" : "#2563eb") + ";" +
+            "color:white;" +
+            "border-right:1px solid white;" +
+            "text-align:center;" +
+            "font-size:12px;" +
+            "overflow:hidden;";
+
+          segment.textContent = `S${scene.sceneNumber}`;
+          segment.title =
+            `${scene.title} — ${scene.durationSeconds} secondes`;
+
+          horizontalTimeline.appendChild(segment);
+        }
+
+        timeline.appendChild(horizontalTimeline);
 
         for (const scene of montage.timeline) {
           const card = document.createElement("div");
