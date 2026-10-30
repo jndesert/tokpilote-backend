@@ -1580,6 +1580,7 @@ const audioTestPreview = {
   return res.json({
     success: true,
     scenes,
+    videoMontagePlan,
     voiceCatalog,
     audioSegments,
     audioTimingDiagnostic,
