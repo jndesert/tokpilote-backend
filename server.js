@@ -1152,6 +1152,9 @@ for (const scene of scenes) {
 
   nextSceneStartSeconds = scene.endSeconds;
 }
+  // Préparation locale du plan de montage vidéo.
+  // Aucun fichier vidéo ou audio n'est généré.
+  const videoMontagePlan = prepareVideoMontage(scenes);
 
   const audioSegments = scenes.flatMap(scene => {
     const dialogues = scene.dialogues || [];
