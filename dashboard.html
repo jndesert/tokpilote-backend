@@ -689,6 +689,45 @@ document.getElementById("prepare-video-montage")
       }
 
       const montage = data.videoMontagePlan;
+      
+      // Affichage visuel du plan de montage.
+      const preview = document.getElementById("video-montage-preview");
+      const summary = document.getElementById("video-montage-summary");
+      const timeline = document.getElementById("video-montage-timeline");
+
+      if (preview && summary && timeline) {
+        const minutes = Math.floor(montage.totalDurationSeconds / 60);
+        const seconds = Math.floor(montage.totalDurationSeconds % 60);
+
+        summary.textContent =
+          `${montage.totalScenes} scènes — Durée totale : ` +
+          `${minutes} min ${String(seconds).padStart(2, "0")} s`;
+
+        timeline.replaceChildren();
+
+        for (const scene of montage.timeline) {
+          const card = document.createElement("div");
+
+          card.style.cssText =
+            "padding:12px;margin-bottom:10px;" +
+            "border:1px solid #ddd;border-radius:8px;";
+
+          const title = document.createElement("strong");
+          title.textContent =
+            `Scène ${scene.sceneNumber} — ${scene.title}`;
+
+          const details = document.createElement("p");
+          details.textContent =
+            `Début : ${scene.startSeconds} s | ` +
+            `Fin : ${scene.endSeconds} s | ` +
+            `Durée : ${scene.durationSeconds} s`;
+
+          card.append(title, details);
+          timeline.appendChild(card);
+        }
+
+        preview.style.display = "block";
+      }
 
       result.textContent = JSON.stringify({
         success: true,
