@@ -673,6 +673,46 @@ Retourne uniquement le texte à ajouter.`,
 
 // Préparer les scènes d'une vidéo à partir d'un scénario
 
+app.get("/api/audio/all-characters-preview", (req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  if (!req.session?.tiktokUser?.openId) {
+    return res.status(401).json({
+      success: false,
+      error: "TIKTOK_AUTH_REQUIRED"
+    });
+  }
+
+  try {
+    const {
+      VOICE_MAPPING,
+      prepareCharacterVoice
+    } = require("./voice-mapping");
+
+    const characters = Object.keys(VOICE_MAPPING).map(
+      (voiceId) => prepareCharacterVoice(
+        voiceId,
+        "Bonjour, voici ma voix."
+      )
+    );
+
+    return res.json({
+      success: true,
+      totalCharacters: characters.length,
+      characters,
+      audioGenerated: false
+    });
+  } catch (error) {
+    console.error("Erreur aperçu des voix :", error);
+
+    return res.status(500).json({
+      success: false,
+      error: "ALL_CHARACTERS_PREVIEW_FAILED",
+      audioGenerated: false
+    });
+  }
+});
+
 app.get("/api/audio/character-preview", (req, res) => {
   res.set("Cache-Control", "no-store");
 
