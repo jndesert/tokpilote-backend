@@ -1111,6 +1111,42 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
 
   // Préparation et synchronisation estimée des dialogues.
   // Aucun appel API et aucune génération audio.
+  // Ajustement automatique des durées des scènes.
+// Calcul local uniquement : aucune génération audio.
+const SCENE_AUDIO_MARGIN_SECONDS = 1.5;
+
+let nextSceneStartSeconds = 0;
+
+for (const scene of scenes) {
+  const dialogueDuration = (scene.dialogues || []).reduce(
+    (total, dialogue) =>
+      total + estimateDialogueDuration(dialogue.text),
+    0
+  );
+
+  const originalDuration =
+    Number.isFinite(scene.durationSeconds) &&
+    scene.durationSeconds > 0
+      ? scene.durationSeconds
+      : 0;
+
+  const requiredDuration =
+    dialogueDuration > 0
+      ? Math.ceil(dialogueDuration + SCENE_AUDIO_MARGIN_SECONDS)
+      : 0;
+
+  const adjustedDuration = Math.max(
+    originalDuration,
+    requiredDuration,
+    1
+  );
+
+  scene.startSeconds = nextSceneStartSeconds;
+  scene.durationSeconds = adjustedDuration;
+  scene.endSeconds = nextSceneStartSeconds + adjustedDuration;
+
+  nextSceneStartSeconds = scene.endSeconds;
+}
 
   const audioSegments = scenes.flatMap(scene => {
     const dialogues = scene.dialogues || [];
