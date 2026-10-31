@@ -901,6 +901,9 @@ document.getElementById("prepare-video-montage")
         `;
 
         timeline.appendChild(videoPreview);
+
+        // Afficher le bouton de lecture dans la timeline.
+        timeline.appendChild(playTimelineButton);
         
         // Bouton Pause / Reprendre de la lecture simulée.
         const pauseTimelineButton = document.createElement("button");
