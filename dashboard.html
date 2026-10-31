@@ -810,6 +810,8 @@ document.getElementById("prepare-video-montage")
             videoPreview.appendChild(previewDuration);
             // Afficher les dialogues de la scène sélectionnée.
             const previewDialogues = document.createElement("div");
+            // Identifier le conteneur des sous-titres.
+            previewDialogues.classList.add("videapilot-subtitles");
 
             previewDialogues.style.cssText =
               "background:#020617;" +
@@ -829,7 +831,7 @@ document.getElementById("prepare-video-montage")
                 (a, b) => (a.order || 0) - (b.order || 0)
               );
 
-              sortedDialogues.forEach(dialogue => {
+              sortedDialogues.slice(0, 1).forEach(dialogue => {
 
                 const dialogueLine = document.createElement("div");
 
@@ -1173,6 +1175,45 @@ document.getElementById("prepare-video-montage")
             );
 
             if (!activeScene) return;
+            // Synchroniser les sous-titres avec la scène active.
+            if (
+              Array.isArray(activeScene.dialogues) &&
+              activeScene.dialogues.length > 0
+            ) {
+              const dialogues = [...activeScene.dialogues].sort(
+                (a, b) => (a.order || 0) - (b.order || 0)
+              );
+
+              // Temps écoulé depuis le début de la scène.
+              const sceneElapsedSeconds = Math.max(
+                0,
+                elapsedSeconds - activeScene.startSeconds
+              );
+
+              // Répartir les dialogues sur la durée de la scène.
+              const secondsPerDialogue =
+                activeScene.durationSeconds / dialogues.length;
+
+              const dialogueIndex = Math.min(
+                dialogues.length - 1,
+                Math.floor(
+                  sceneElapsedSeconds / Math.max(0.001, secondsPerDialogue)
+                )
+              );
+
+              const currentDialogue = dialogues[dialogueIndex];
+
+              // Retrouver le cadre des dialogues dans l'aperçu.
+              const subtitlesContainer =
+                videoPreview.querySelector(".videapilot-subtitles");
+
+              if (subtitlesContainer) {
+                subtitlesContainer.textContent =
+                  (currentDialogue.character || "Narrateur") +
+                  " : " +
+                  (currentDialogue.text || "");
+              }
+            }
 
             // Sélectionner visuellement le segment correspondant.
             const segments = Array.from(horizontalTimeline.children);
