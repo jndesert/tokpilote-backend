@@ -1031,6 +1031,44 @@ document.getElementById("prepare-video-montage")
 
         progressContainer.appendChild(playbackProgressBar);
         timeline.appendChild(progressContainer);
+
+        // Indicateur du temps au survol de la barre.
+        const playbackHoverTime = document.createElement("div");
+
+        playbackHoverTime.style.cssText =
+          "font-size:12px;" +
+          "color:#2563eb;" +
+          "font-weight:bold;" +
+          "margin-bottom:8px;" +
+          "display:none;";
+
+        timeline.appendChild(playbackHoverTime);
+        
+        // Afficher le temps correspondant à la position de la souris.
+        progressContainer.addEventListener("mousemove", (event) => {
+          const rect = progressContainer.getBoundingClientRect();
+
+          const mousePosition = event.clientX - rect.left;
+
+          const progressRatio = Math.max(
+            0,
+            Math.min(1, mousePosition / rect.width)
+          );
+
+          const hoverSeconds =
+            progressRatio * montage.totalDurationSeconds;
+
+          playbackHoverTime.textContent =
+            "⏱ Position : " + formatPlaybackTime(hoverSeconds);
+
+          playbackHoverTime.style.display = "block";
+        });
+
+        // Masquer l'indicateur lorsque la souris quitte la barre.
+        progressContainer.addEventListener("mouseleave", () => {
+          playbackHoverTime.style.display = "none";
+        });
+        
         // Calculer la position temporelle du clic sur la barre.
         progressContainer.addEventListener("click", (event) => {
           const rect = progressContainer.getBoundingClientRect();
