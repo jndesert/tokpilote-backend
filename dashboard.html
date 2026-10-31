@@ -785,6 +785,30 @@ document.getElementById("prepare-video-montage")
 
             // Mettre en orange le segment sélectionné.
             segment.style.background = "#f97316";
+            // Actualiser l'aperçu de la scène sélectionnée.
+            videoPreview.innerHTML = "";
+
+            const previewIcon = document.createElement("div");
+            previewIcon.textContent = "🎬";
+            previewIcon.style.cssText =
+              "font-size:36px;margin-bottom:12px;";
+
+            const previewTitle = document.createElement("div");
+            previewTitle.textContent =
+              `Scène ${scene.sceneNumber} — ${scene.title}`;
+            previewTitle.style.cssText =
+              "font-size:20px;font-weight:bold;";
+
+            const previewDuration = document.createElement("div");
+            previewDuration.textContent =
+              `Durée : ${scene.durationSeconds} secondes`;
+            previewDuration.style.cssText =
+              "font-size:14px;color:#94a3b8;margin-top:8px;";
+
+            videoPreview.appendChild(previewIcon);
+            videoPreview.appendChild(previewTitle);
+            videoPreview.appendChild(previewDuration);
+            
             const cards = timeline.querySelectorAll(".montage-scene-card");
 
             cards.forEach(card => {
