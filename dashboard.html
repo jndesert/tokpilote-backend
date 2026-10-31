@@ -873,6 +873,29 @@ document.getElementById("prepare-video-montage")
           " / " + formatPlaybackTime(montage.totalDurationSeconds);
 
         timeline.appendChild(playbackCounter);
+        // Conteneur de la barre de progression.
+        const progressContainer = document.createElement("div");
+
+        progressContainer.style.cssText =
+          "width:100%;" +
+          "height:12px;" +
+          "background:#e5e7eb;" +
+          "border-radius:10px;" +
+          "overflow:hidden;" +
+          "margin:5px 0 20px;";
+
+        // Barre de progression.
+        const playbackProgressBar = document.createElement("div");
+
+        playbackProgressBar.style.cssText =
+          "width:0%;" +
+          "height:100%;" +
+          "background:#2563eb;" +
+          "border-radius:10px;" +
+          "transition:width 0.3s ease;";
+
+        progressContainer.appendChild(playbackProgressBar);
+        timeline.appendChild(progressContainer);
         
         // Lecture simulée de la timeline, sans vidéo ni audio.
         let playbackTimer = null;
@@ -904,6 +927,14 @@ document.getElementById("prepare-video-montage")
             playbackCounter.textContent =
               "⏱ " + formatPlaybackTime(currentSeconds) +
               " / " + formatPlaybackTime(montage.totalDurationSeconds);
+            // Actualiser la barre de progression pendant la lecture.
+            const progressPercent =
+              montage.totalDurationSeconds > 0
+                ? (currentSeconds / montage.totalDurationSeconds) * 100
+                : 0;
+
+            playbackProgressBar.style.width =
+              Math.max(0, Math.min(100, progressPercent)) + "%";
             
 
             // Terminer la simulation.
