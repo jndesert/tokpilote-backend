@@ -848,6 +848,25 @@ document.getElementById("prepare-video-montage")
           "cursor:pointer;";
 
         timeline.appendChild(playTimelineButton);
+        // Bouton Pause / Reprendre de la lecture simulée.
+        const pauseTimelineButton = document.createElement("button");
+
+        pauseTimelineButton.type = "button";
+        pauseTimelineButton.textContent = "⏸ Pause";
+        pauseTimelineButton.disabled = true;
+
+        pauseTimelineButton.style.cssText =
+          "background:#64748b;" +
+          "color:white;" +
+          "border:none;" +
+          "border-radius:8px;" +
+          "padding:12px 20px;" +
+          "margin:10px 0 20px 10px;" +
+          "font-size:14px;" +
+          "font-weight:bold;" +
+          "cursor:pointer;";
+
+        timeline.appendChild(pauseTimelineButton);
         
         // Compteur de progression de la lecture simulée.
         const playbackCounter = document.createElement("div");
@@ -900,18 +919,88 @@ document.getElementById("prepare-video-montage")
         // Lecture simulée de la timeline, sans vidéo ni audio.
         let playbackTimer = null;
         let playbackStartTime = 0;
+        
+        // Gestion de la pause et de la reprise.
+        let playbackPaused = false;
+        let playbackElapsedBeforePause = 0;
+        let playbackPauseStartTime = 0;
+        
+        // Fonction de lecture partagée entre Démarrer et Reprendre.
+        let updatePlayback = null;
+        
+        // Mettre en pause ou reprendre la lecture simulée.
+        pauseTimelineButton.addEventListener("click", () => {
+
+          // REPRENDRE la lecture si elle est en pause.
+          if (playbackPaused) {
+            playbackStartTime = Date.now();
+            playbackPaused = false;
+
+            if (typeof updatePlayback === "function") {
+              updatePlayback();
+              playbackTimer = setInterval(updatePlayback, 1000);
+            }
+
+            pauseTimelineButton.textContent = "⏸ Pause";
+            pauseTimelineButton.style.background = "#f59e0b";
+
+            return;
+          }
+
+          // Ignorer le clic si aucune lecture n'est en cours.
+          if (playbackTimer === null) {
+            return;
+          }
+
+          // MÉMORISER le temps écoulé avant la pause.
+          playbackElapsedBeforePause +=
+            (Date.now() - playbackStartTime) / 1000;
+
+          playbackPauseStartTime = Date.now();
+          playbackPaused = true;
+
+          // Suspendre le chronomètre.
+          clearInterval(playbackTimer);
+          playbackTimer = null;
+
+          // Afficher le bouton Reprendre.
+          pauseTimelineButton.textContent = "▶ Reprendre";
+          pauseTimelineButton.style.background = "#16a34a";
+
+        });
 
         playTimelineButton.addEventListener("click", () => {
 
-          // Arrêter la lecture en cours.
-          if (playbackTimer !== null) {
-            clearInterval(playbackTimer);
-            playbackTimer = null;
+          // Arrêter la lecture en cours, même si elle est en pause.
+          if (playbackTimer !== null || playbackPaused) {
+
+            if (playbackTimer !== null) {
+              clearInterval(playbackTimer);
+              playbackTimer = null;
+            }
+
+            // Réinitialiser l'état de pause.
+            playbackPaused = false;
+            playbackElapsedBeforePause = 0;
+            playbackPauseStartTime = 0;
+
+            // Réinitialiser les boutons.
             playTimelineButton.textContent = "▶ Lire la timeline";
+
+            pauseTimelineButton.disabled = true;
+            pauseTimelineButton.textContent = "⏸ Pause";
+            pauseTimelineButton.style.background = "#64748b";
+
             return;
           }
 
           // Démarrer la lecture depuis le début.
+          
+          // Réinitialiser les données de pause pour une nouvelle lecture.
+          playbackPaused = false;
+          playbackElapsedBeforePause = 0;
+          playbackPauseStartTime = 0;
+          
           playbackStartTime = Date.now();
           // Réinitialiser le compteur au début de la lecture.
           playbackCounter.textContent =
@@ -920,10 +1009,17 @@ document.getElementById("prepare-video-montage")
 
           // Remettre la barre de progression à zéro.
           playbackProgressBar.style.width = "0%";
+          
           playTimelineButton.textContent = "■ Arrêter la lecture";
+          
+          // Activer le bouton Pause au démarrage de la lecture.
+          pauseTimelineButton.disabled = false;
+          pauseTimelineButton.style.background = "#f59e0b";
+          pauseTimelineButton.textContent = "⏸ Pause";
 
-          const updatePlayback = () => {
+          updatePlayback = () => {
             const elapsedSeconds =
+              playbackElapsedBeforePause +
               (Date.now() - playbackStartTime) / 1000;
             // Actualiser le compteur pendant la lecture simulée.
             const currentSeconds = Math.min(
@@ -944,11 +1040,26 @@ document.getElementById("prepare-video-montage")
               Math.max(0, Math.min(100, progressPercent)) + "%";
             
 
-            // Terminer la simulation.
+            // Terminer automatiquement la simulation.
             if (elapsedSeconds >= montage.totalDurationSeconds) {
+
+              // Arrêter le chronomètre.
               clearInterval(playbackTimer);
               playbackTimer = null;
+
+              // Réinitialiser l'état de pause.
+              playbackPaused = false;
+              playbackElapsedBeforePause = 0;
+              playbackPauseStartTime = 0;
+
+              // Restaurer le bouton de lecture.
               playTimelineButton.textContent = "▶ Lire la timeline";
+
+              // Désactiver le bouton Pause.
+              pauseTimelineButton.disabled = true;
+              pauseTimelineButton.textContent = "⏸ Pause";
+              pauseTimelineButton.style.background = "#64748b";
+
               return;
             }
 
