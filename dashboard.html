@@ -876,7 +876,7 @@ document.getElementById("prepare-video-montage")
           </div>
         `;
 
-        playTimelineButton.parentNode.insertBefore(videoPreview, playTimelineButton);
+        timeline.appendChild(videoPreview);
         
         // Bouton Pause / Reprendre de la lecture simulée.
         const pauseTimelineButton = document.createElement("button");
