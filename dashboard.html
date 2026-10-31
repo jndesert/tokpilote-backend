@@ -808,6 +808,52 @@ document.getElementById("prepare-video-montage")
             videoPreview.appendChild(previewIcon);
             videoPreview.appendChild(previewTitle);
             videoPreview.appendChild(previewDuration);
+            // Afficher les dialogues de la scène sélectionnée.
+            const previewDialogues = document.createElement("div");
+
+            previewDialogues.style.cssText =
+              "background:#020617;" +
+              "color:white;" +
+              "padding:14px;" +
+              "border-radius:8px;" +
+              "margin-top:20px;" +
+              "width:100%;" +
+              "max-width:600px;" +
+              "box-sizing:border-box;" +
+              "font-size:15px;" +
+              "line-height:1.6;";
+
+            if (Array.isArray(scene.dialogues) && scene.dialogues.length > 0) {
+
+              const sortedDialogues = [...scene.dialogues].sort(
+                (a, b) => (a.order || 0) - (b.order || 0)
+              );
+
+              sortedDialogues.forEach(dialogue => {
+
+                const dialogueLine = document.createElement("div");
+
+                dialogueLine.style.marginBottom = "10px";
+
+                const character = document.createElement("strong");
+                character.textContent = (dialogue.character || "Narrateur") + " : ";
+
+                const text = document.createElement("span");
+                text.textContent = dialogue.text || "";
+
+                dialogueLine.append(character, text);
+                previewDialogues.appendChild(dialogueLine);
+
+              });
+
+            } else {
+
+              previewDialogues.textContent =
+                "Aucun dialogue disponible pour cette scène.";
+
+            }
+
+            videoPreview.appendChild(previewDialogues);
             
             const cards = timeline.querySelectorAll(".montage-scene-card");
 
