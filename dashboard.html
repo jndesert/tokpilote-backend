@@ -1057,9 +1057,18 @@ document.getElementById("prepare-video-montage")
 
           const hoverSeconds =
             Math.round(progressRatio * montage.totalDurationSeconds);
+          
+          // Identifier la scène correspondant au temps survolé.
+          const hoveredScene = montage.timeline.find((scene) => {
+            return (
+              hoverSeconds >= scene.startSeconds &&
+              hoverSeconds < scene.endSeconds
+            );
+          }) || montage.timeline[montage.timeline.length - 1];
 
           playbackHoverTime.textContent =
-            "⏱ Position : " + formatPlaybackTime(hoverSeconds);
+            "⏱ Position : " + formatPlaybackTime(hoverSeconds) +
+            " — Scène " + hoveredScene.sceneNumber;
 
           playbackHoverTime.style.display = "block";
         });
