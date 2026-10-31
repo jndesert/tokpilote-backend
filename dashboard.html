@@ -774,7 +774,17 @@ document.getElementById("prepare-video-montage")
           // Rendre chaque segment cliquable.
           segment.style.cursor = "pointer";
 
-          segment.addEventListener("click", () => {
+          segment.addEventListener("click", (event) => {
+            // Déplacer la lecture vers la scène sélectionnée
+            // uniquement si une lecture est en cours ou en pause.
+            if (
+              event.detail !== 0 &&
+              (playbackTimer !== null || playbackPaused)
+            ) {
+              playbackElapsedBeforePause = scene.startSeconds;
+              playbackStartTime = Date.now();              
+            }
+            
             // Réinitialiser la couleur de tous les segments.
             const allSegments = horizontalTimeline.children;
 
@@ -1227,7 +1237,9 @@ document.getElementById("prepare-video-montage")
               activeSegment.style.background !== "rgb(249, 115, 22)" &&
               activeSegment.style.background !== "#f97316"
             ) {
-              activeSegment.click();
+              activeSegment.dispatchEvent(
+                new MouseEvent("click", { bubbles: true, detail: 0 })
+              );
             }
           };
 
