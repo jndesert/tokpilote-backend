@@ -1056,7 +1056,7 @@ document.getElementById("prepare-video-montage")
           );
 
           const hoverSeconds =
-            progressRatio * montage.totalDurationSeconds;
+            Math.round(progressRatio * montage.totalDurationSeconds);
 
           playbackHoverTime.textContent =
             "⏱ Position : " + formatPlaybackTime(hoverSeconds);
