@@ -1068,7 +1068,8 @@ document.getElementById("prepare-video-montage")
 
           playbackHoverTime.textContent =
             "⏱ Position : " + formatPlaybackTime(hoverSeconds) +
-            " — Scène " + hoveredScene.sceneNumber;
+            " — Scène " + hoveredScene.sceneNumber +
+            " — " + hoveredScene.title;
 
           playbackHoverTime.style.display = "block";
         });
