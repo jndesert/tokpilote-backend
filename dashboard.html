@@ -1016,7 +1016,8 @@ document.getElementById("prepare-video-montage")
           "background:#e5e7eb;" +
           "border-radius:10px;" +
           "overflow:hidden;" +
-          "margin:5px 0 20px;";
+          "margin:5px 0 20px;" +
+          "cursor:pointer;";
 
         // Barre de progression.
         const playbackProgressBar = document.createElement("div");
@@ -1030,6 +1031,26 @@ document.getElementById("prepare-video-montage")
 
         progressContainer.appendChild(playbackProgressBar);
         timeline.appendChild(progressContainer);
+        // Calculer la position temporelle du clic sur la barre.
+        progressContainer.addEventListener("click", (event) => {
+          const rect = progressContainer.getBoundingClientRect();
+
+          const clickPosition = event.clientX - rect.left;
+
+          const progressRatio = Math.max(
+            0,
+            Math.min(1, clickPosition / rect.width)
+          );
+
+          const targetSeconds =
+            progressRatio * montage.totalDurationSeconds;
+
+          console.log(
+            "VidéaPilot - Position sélectionnée :",
+            targetSeconds.toFixed(1),
+            "secondes"
+          );
+        });
         
         // Lecture simulée de la timeline, sans vidéo ni audio.
         let playbackTimer = null;
