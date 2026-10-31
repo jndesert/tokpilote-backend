@@ -913,6 +913,13 @@ document.getElementById("prepare-video-montage")
 
           // Démarrer la lecture depuis le début.
           playbackStartTime = Date.now();
+          // Réinitialiser le compteur au début de la lecture.
+          playbackCounter.textContent =
+            "⏱ " + formatPlaybackTime(0) +
+            " / " + formatPlaybackTime(montage.totalDurationSeconds);
+
+          // Remettre la barre de progression à zéro.
+          playbackProgressBar.style.width = "0%";
           playTimelineButton.textContent = "■ Arrêter la lecture";
 
           const updatePlayback = () => {
