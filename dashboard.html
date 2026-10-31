@@ -1066,10 +1066,49 @@ document.getElementById("prepare-video-montage")
             );
           }) || montage.timeline[montage.timeline.length - 1];
 
+          // Identifier le dialogue correspondant à la position survolée.
+          const hoveredDialogues = Array.isArray(hoveredScene.dialogues)
+            ? [...hoveredScene.dialogues].sort(
+                (a, b) => (a.order || 0) - (b.order || 0)
+              )
+            : [];
+
+          const hoveredSceneElapsedSeconds = Math.max(
+            0,
+            hoverSeconds - hoveredScene.startSeconds
+          );
+
+          const hoveredSecondsPerDialogue =
+            hoveredDialogues.length > 0
+              ? hoveredScene.durationSeconds / hoveredDialogues.length
+              : 0;
+
+          const hoveredDialogueIndex =
+            hoveredDialogues.length > 0
+              ? Math.min(
+                  hoveredDialogues.length - 1,
+                  Math.floor(
+                    hoveredSceneElapsedSeconds /
+                    Math.max(0.001, hoveredSecondsPerDialogue)
+                  )
+                )
+              : -1;
+
+          const hoveredDialogue =
+            hoveredDialogueIndex >= 0
+              ? hoveredDialogues[hoveredDialogueIndex]
+              : null;
+
           playbackHoverTime.textContent =
             "⏱ Position : " + formatPlaybackTime(hoverSeconds) +
             " — Scène " + hoveredScene.sceneNumber +
-            " — " + hoveredScene.title;
+            " — " + hoveredScene.title +
+            (hoveredDialogue
+              ? " — 🎙 " +
+                (hoveredDialogue.character || "Narrateur") +
+                " : " +
+                (hoveredDialogue.text || "")
+              : "");
 
           playbackHoverTime.style.display = "block";
         });
