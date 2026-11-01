@@ -1278,8 +1278,12 @@ document.getElementById("prepare-video-montage")
             // Rechercher la scène correspondant à la nouvelle position.
             console.log(
               "VidéaPilot - Correspondance des scènes :",
-              montage.scenes.map(s => s.sceneNumber),
-              montage.timeline.map(s => s.sceneNumber)
+              "scenes =", Array.isArray(montage.scenes)
+                ? montage.scenes.map(s => s.sceneNumber)
+                : "Indisponible",
+              "timeline =", Array.isArray(montage.timeline)
+                ? montage.timeline.map(s => s.sceneNumber)
+                : "Indisponible"
             );
             
             const targetScene = montage.scenes.find(
