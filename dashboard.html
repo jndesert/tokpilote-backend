@@ -1221,7 +1221,8 @@ document.getElementById("prepare-video-montage")
           if (
             event.key !== "ArrowLeft" &&
             event.key !== "ArrowRight" &&
-            event.key !== "Home"
+            event.key !== "Home" &&
+            event.key !== "End"
           ) {
             return;
           }
@@ -1239,17 +1240,19 @@ document.getElementById("prepare-video-montage")
 
           const targetSeconds = event.key === "Home"
             ? 0
-            : Math.max(
-                0,
-                Math.min(
-                  montage.totalDurationSeconds,
-                  playbackElapsedBeforePause +
-                    (playbackPaused
-                      ? 0
-                      : (Date.now() - playbackStartTime) / 1000) +
-                    keyboardStep
-                )
-              );
+            : event.key === "End"
+              ? montage.totalDurationSeconds
+              : Math.max(
+                  0,
+                  Math.min(
+                    montage.totalDurationSeconds,
+                    playbackElapsedBeforePause +
+                      (playbackPaused
+                        ? 0
+                        : (Date.now() - playbackStartTime) / 1000) +
+                      keyboardStep
+                  )
+                );
 
           // Appliquer la nouvelle position de lecture.
           playbackElapsedBeforePause = targetSeconds;
