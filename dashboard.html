@@ -1244,6 +1244,15 @@ document.getElementById("prepare-video-montage")
             pauseTimelineButton.disabled = true;
             pauseTimelineButton.textContent = "⏸ Pause";
             pauseTimelineButton.style.background = "#64748b";
+            
+            // Revenir visuellement à la première scène après l'arrêt.
+            const firstSegment = horizontalTimeline.children[0];
+
+            if (firstSegment) {
+              firstSegment.dispatchEvent(
+                new MouseEvent("click", { bubbles: true, detail: 0 })
+              );
+            }
 
             return;
           }
