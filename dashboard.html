@@ -1276,17 +1276,7 @@ document.getElementById("prepare-video-montage")
               );
 
             // Rechercher la scène correspondant à la nouvelle position.
-            console.log(
-              "VidéaPilot - Correspondance des scènes :",
-              "scenes =", Array.isArray(montage.scenes)
-                ? montage.scenes.map(s => s.sceneNumber)
-                : "Indisponible",
-              "timeline =", Array.isArray(montage.timeline)
-                ? montage.timeline.map(s => s.sceneNumber)
-                : "Indisponible"
-            );
-            
-            const targetScene = montage.scenes.find(
+            const targetScene = montage.timeline.find(
               (scene) =>
                 targetSeconds >= scene.startSeconds &&
                 targetSeconds < scene.startSeconds + scene.durationSeconds
@@ -1295,9 +1285,9 @@ document.getElementById("prepare-video-montage")
             // Retrouver l'index de la scène sélectionnée.
             // Conserver la dernière scène lorsque la lecture atteint la fin.
             const targetSceneIndex = targetScene
-              ? montage.scenes.indexOf(targetScene)
+              ? montage.timeline.indexOf(targetScene)
               : targetSeconds >= montage.totalDurationSeconds
-                ? montage.scenes.length - 1
+                ? montage.timeline.length - 1
                 : -1;
 
             // Sélectionner visuellement la scène correspondante.
