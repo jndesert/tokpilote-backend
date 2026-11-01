@@ -1218,7 +1218,11 @@ document.getElementById("prepare-video-montage")
 
         // Préparer la navigation au clavier dans la timeline.
         progressContainer.addEventListener("keydown", (event) => {
-          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+          if (
+            event.key !== "ArrowLeft" &&
+            event.key !== "ArrowRight" &&
+            event.key !== "Home"
+          ) {
             return;
           }
 
@@ -1233,17 +1237,19 @@ document.getElementById("prepare-video-montage")
           // Déplacer la position de 5 secondes vers la gauche ou la droite.
           const keyboardStep = event.key === "ArrowRight" ? 5 : -5;
 
-          const targetSeconds = Math.max(
-            0,
-            Math.min(
-              montage.totalDurationSeconds,
-              playbackElapsedBeforePause +
-                (playbackPaused
-                  ? 0
-                  : (Date.now() - playbackStartTime) / 1000) +
-                keyboardStep
-            )
-          );
+          const targetSeconds = event.key === "Home"
+            ? 0
+            : Math.max(
+                0,
+                Math.min(
+                  montage.totalDurationSeconds,
+                  playbackElapsedBeforePause +
+                    (playbackPaused
+                      ? 0
+                      : (Date.now() - playbackStartTime) / 1000) +
+                    keyboardStep
+                )
+              );
 
           // Appliquer la nouvelle position de lecture.
           playbackElapsedBeforePause = targetSeconds;
