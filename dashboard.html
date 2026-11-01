@@ -1197,8 +1197,58 @@ document.getElementById("prepare-video-montage")
           // Mémoriser la position temporelle sélectionnée.
           playbackElapsedBeforePause = targetSeconds;
 
+          // Actualiser le chronomètre et la progression pendant la pause.
+          if (playbackPaused) {
+            playbackCounter.textContent =
+              "⏱ " + formatPlaybackTime(targetSeconds) +
+              " / " + formatPlaybackTime(montage.totalDurationSeconds) +
+              " — ⏳ Restant : " +
+              formatPlaybackTime(
+                Math.max(0, montage.totalDurationSeconds - targetSeconds)
+              );
+
+            playbackProgressBar.style.width =
+              (targetSeconds / montage.totalDurationSeconds) * 100 + "%";
+
+            progressContainer.setAttribute(
+              "aria-valuenow",
+              String(Math.floor(targetSeconds))
+            );
+
+            progressContainer.setAttribute(
+              "aria-valuetext",
+              Math.floor(targetSeconds) + " secondes sur " +
+              montage.totalDurationSeconds + " secondes"
+            );
+          }
+
           // Réinitialiser le point de départ du chronomètre.
           playbackStartTime = Date.now();
+          // Synchroniser la scène et l'aperçu pendant la pause.
+          if (playbackPaused) {
+            const targetScene = montage.timeline.find(
+              (scene) =>
+                targetSeconds >= scene.startSeconds &&
+                targetSeconds < scene.startSeconds + scene.durationSeconds
+            );
+
+            const targetSceneIndex = targetScene
+              ? montage.timeline.indexOf(targetScene)
+              : targetSeconds >= montage.totalDurationSeconds
+                ? montage.timeline.length - 1
+                : -1;
+
+            if (targetSceneIndex >= 0) {
+              const targetSegment =
+                horizontalTimeline.children[targetSceneIndex];
+
+              if (targetSegment) {
+                targetSegment.dispatchEvent(
+                  new MouseEvent("click", { bubbles: true, detail: 0 })
+                );
+              }
+            }
+          }
 
           // Actualiser immédiatement le lecteur si la lecture est active.
           if (
