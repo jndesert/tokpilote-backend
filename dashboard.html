@@ -1293,9 +1293,18 @@ document.getElementById("prepare-video-montage")
               montage.totalDurationSeconds
             );
 
+            // Calculer le temps restant pendant la lecture.
+            const remainingSeconds = Math.max(
+              0,
+              montage.totalDurationSeconds - currentSeconds
+            );
+
+            // Afficher le temps écoulé, la durée totale et le temps restant.
             playbackCounter.textContent =
               "⏱ " + formatPlaybackTime(currentSeconds) +
-              " / " + formatPlaybackTime(montage.totalDurationSeconds);
+              " / " + formatPlaybackTime(montage.totalDurationSeconds) +
+              " — ⏳ Restant : " + formatPlaybackTime(remainingSeconds);
+            
             // Actualiser la barre de progression pendant la lecture.
             const progressPercent =
               montage.totalDurationSeconds > 0
