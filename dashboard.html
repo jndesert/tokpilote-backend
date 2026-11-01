@@ -924,7 +924,7 @@ document.getElementById("prepare-video-montage")
           "border:none;" +
           "border-radius:8px;" +
           "padding:12px 20px;" +
-          "margin:10px 0 20px;" +
+          "margin:0;" +
           "font-size:14px;" +
           "font-weight:bold;" +
           "cursor:pointer;";
@@ -960,8 +960,18 @@ document.getElementById("prepare-video-montage")
 
         timeline.appendChild(videoPreview);
 
+        // Conteneur responsive pour les boutons de lecture.
+        const playbackControls = document.createElement("div");
+
+        playbackControls.style.cssText =
+          "display:flex;" +
+          "flex-wrap:wrap;" +
+          "align-items:center;" +
+          "gap:10px;" +
+          "margin:10px 0 20px;";
+
         // Afficher le bouton de lecture dans la timeline.
-        timeline.appendChild(playTimelineButton);
+        playbackControls.appendChild(playTimelineButton);
         
         // Bouton Pause / Reprendre de la lecture simulée.
         const pauseTimelineButton = document.createElement("button");
@@ -976,12 +986,15 @@ document.getElementById("prepare-video-montage")
           "border:none;" +
           "border-radius:8px;" +
           "padding:12px 20px;" +
-          "margin:10px 0 20px 10px;" +
+          "margin:0;" +
           "font-size:14px;" +
           "font-weight:bold;" +
           "cursor:pointer;";
 
-        timeline.appendChild(pauseTimelineButton);
+        playbackControls.appendChild(pauseTimelineButton);
+
+        // Afficher les boutons Lire et Pause dans la timeline.
+        timeline.appendChild(playbackControls);
         
         // Compteur de progression de la lecture simulée.
         const playbackCounter = document.createElement("div");
