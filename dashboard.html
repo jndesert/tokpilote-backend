@@ -1029,6 +1029,33 @@ document.getElementById("prepare-video-montage")
         timeline.appendChild(playbackCounter);
         // Conteneur de la barre de progression.
         const progressContainer = document.createElement("div");
+        
+        // Permettre la sélection de la barre au clavier.
+        progressContainer.tabIndex = 0;
+
+        // Donner un nom accessible à la barre de progression.
+        progressContainer.setAttribute("aria-label", "Position de lecture de la timeline");
+
+        // Identifier la barre comme un curseur de progression.
+        progressContainer.setAttribute("role", "slider");
+
+        // Définir le début de la timeline à 0 seconde.
+        progressContainer.setAttribute("aria-valuemin", "0");
+
+        // Définir la durée totale comme valeur maximale du curseur.
+        progressContainer.setAttribute(
+          "aria-valuemax",
+          String(montage.totalDurationSeconds)
+        );
+
+        // Définir la position initiale du curseur à 0 seconde.
+        progressContainer.setAttribute("aria-valuenow", "0");
+
+        // Décrire la position initiale sans appeler une fonction déclarée plus loin.
+        progressContainer.setAttribute(
+          "aria-valuetext",
+          "0 seconde sur " + montage.totalDurationSeconds + " secondes"
+        );
 
         progressContainer.style.cssText =
           "width:100%;" +
@@ -1185,6 +1212,110 @@ document.getElementById("prepare-video-montage")
             "secondes"
           );
         });
+
+        // Préparer la navigation au clavier dans la timeline.
+        progressContainer.addEventListener("keydown", (event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+            return;
+          }
+
+          // Empêcher le défilement de la page avec ces touches.
+          event.preventDefault();
+
+          // Ignorer les flèches si le lecteur est arrêté.
+          if (playbackTimer === null && !playbackPaused) {
+            return;
+          }
+
+          // Déplacer la position de 5 secondes vers la gauche ou la droite.
+          const keyboardStep = event.key === "ArrowRight" ? 5 : -5;
+
+          const targetSeconds = Math.max(
+            0,
+            Math.min(
+              montage.totalDurationSeconds,
+              playbackElapsedBeforePause +
+                (playbackPaused
+                  ? 0
+                  : (Date.now() - playbackStartTime) / 1000) +
+                keyboardStep
+            )
+          );
+
+          // Appliquer la nouvelle position de lecture.
+          playbackElapsedBeforePause = targetSeconds;
+          playbackStartTime = Date.now();
+
+          // Actualiser immédiatement le lecteur pendant la lecture.
+          if (
+            !playbackPaused &&
+            playbackTimer !== null &&
+            typeof updatePlayback === "function"
+          ) {
+            updatePlayback();
+          }
+
+          // Actualiser la position accessible pendant la pause.
+          if (playbackPaused) {
+            // Actualiser la barre visuelle pendant la pause.
+            const pausedProgressPercent =
+              montage.totalDurationSeconds > 0
+                ? (targetSeconds / montage.totalDurationSeconds) * 100
+                : 0;
+
+            playbackProgressBar.style.width =
+              Math.max(0, Math.min(100, pausedProgressPercent)) + "%";
+
+            // Actualiser le chronomètre pendant la pause.
+            playbackCounter.textContent =
+              "⏱ " + formatPlaybackTime(targetSeconds) +
+              " / " + formatPlaybackTime(montage.totalDurationSeconds) +
+              " — ⏳ Restant : " +
+              formatPlaybackTime(
+                Math.max(0, montage.totalDurationSeconds - targetSeconds)
+              );
+
+            // Rechercher la scène correspondant à la nouvelle position.
+            const targetScene = montage.scenes.find(
+              (scene) =>
+                targetSeconds >= scene.startSeconds &&
+                targetSeconds < scene.startSeconds + scene.durationSeconds
+            );
+
+            // Retrouver l'index de la scène sélectionnée.
+            // Conserver la dernière scène lorsque la lecture atteint la fin.
+            const targetSceneIndex = targetScene
+              ? montage.scenes.indexOf(targetScene)
+              : targetSeconds >= montage.totalDurationSeconds
+                ? montage.scenes.length - 1
+                : -1;
+
+            // Sélectionner visuellement la scène correspondante.
+            if (targetSceneIndex >= 0) {
+              const targetSegment = horizontalTimeline.children[targetSceneIndex];
+
+              if (targetSegment) {
+                targetSegment.dispatchEvent(
+                  new MouseEvent("click", {
+                    bubbles: true,
+                    detail: 0
+                  })
+                );
+              }
+            }
+            
+            progressContainer.setAttribute(
+              "aria-valuenow",
+              String(Math.floor(targetSeconds))
+            );
+
+            progressContainer.setAttribute(
+              "aria-valuetext",
+              Math.floor(targetSeconds) + " secondes sur " +
+              montage.totalDurationSeconds + " secondes"
+            );
+          }
+        });
         
         // Lecture simulée de la timeline, sans vidéo ni audio.
         let playbackTimer = null;
@@ -1261,6 +1392,13 @@ document.getElementById("prepare-video-montage")
             // Remettre la barre de progression à zéro après l'arrêt.
             playbackProgressBar.style.width = "0%";
 
+            // Réinitialiser la position accessible du curseur.
+            progressContainer.setAttribute("aria-valuenow", "0");
+            progressContainer.setAttribute(
+              "aria-valuetext",
+              "0 seconde sur " + montage.totalDurationSeconds + " secondes"
+            );
+
             // Réinitialiser les boutons.
             playTimelineButton.textContent = "▶ Lire la timeline";
 
@@ -1333,7 +1471,18 @@ document.getElementById("prepare-video-montage")
 
             playbackProgressBar.style.width =
               Math.max(0, Math.min(100, progressPercent)) + "%";
-            
+
+            // Synchroniser la position accessible avec la lecture.
+            progressContainer.setAttribute(
+              "aria-valuenow",
+              String(Math.floor(currentSeconds))
+            );
+
+            progressContainer.setAttribute(
+              "aria-valuetext",
+              Math.floor(currentSeconds) + " secondes sur " +
+              montage.totalDurationSeconds + " secondes"
+            );
 
             // Terminer automatiquement la simulation.
             if (elapsedSeconds >= montage.totalDurationSeconds) {
