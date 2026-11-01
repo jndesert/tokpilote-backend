@@ -1237,6 +1237,9 @@ document.getElementById("prepare-video-montage")
             // Remettre le chronomètre visuel à zéro.
             playbackCounter.textContent =
               "⏱ 00:00 / " + formatPlaybackTime(montage.totalDurationSeconds);
+            
+            // Remettre la barre de progression à zéro après l'arrêt.
+            playbackProgressBar.style.width = "0%";
 
             // Réinitialiser les boutons.
             playTimelineButton.textContent = "▶ Lire la timeline";
