@@ -1499,6 +1499,15 @@ document.getElementById("prepare-video-montage")
             // Terminer automatiquement la simulation.
             if (elapsedSeconds >= montage.totalDurationSeconds) {
 
+              // Afficher la dernière scène avant l'arrêt automatique.
+              const lastSegment = horizontalTimeline.lastElementChild;
+
+              if (lastSegment) {
+                lastSegment.dispatchEvent(
+                  new MouseEvent("click", { bubbles: true, detail: 0 })
+                );
+              }
+
               // Arrêter le chronomètre.
               clearInterval(playbackTimer);
               playbackTimer = null;
