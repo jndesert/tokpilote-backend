@@ -881,13 +881,6 @@ document.getElementById("prepare-video-montage")
             if (selectedCard) {
               selectedCard.style.border = "2px solid #2563eb";
               selectedCard.style.background = "#dbeafe";
-              // Faire défiler vers la carte uniquement lors d'un clic manuel.
-              if (event.detail !== 0) {
-                selectedCard.scrollIntoView({
-                  behavior: "smooth",
-                  block: "center"
-                });
-              }
             }
           });
 
