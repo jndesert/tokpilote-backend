@@ -865,6 +865,31 @@ document.getElementById("prepare-video-montage")
 
             }
 
+            // Afficher la description visuelle de la scène.
+            const visualDescription = document.createElement("div");
+
+            visualDescription.className = "videapilot-visual-description";
+
+            visualDescription.style.cssText =
+              "background:#1e293b;" +
+              "color:#e2e8f0;" +
+              "border:1px solid #475569;" +
+              "border-radius:8px;" +
+              "padding:15px;" +
+              "margin-top:15px;" +
+              "width:100%;" +
+              "max-width:600px;" +
+              "box-sizing:border-box;" +
+              "font-size:14px;" +
+              "line-height:1.6;" +
+              "text-align:left;";
+
+            visualDescription.textContent = scene.visualPrompt
+              ? "🎨 Description visuelle : " + scene.visualPrompt
+              : "🎨 Aucune description visuelle disponible.";
+
+            videoPreview.appendChild(visualDescription);
+
             videoPreview.appendChild(previewDialogues);
             
             const cards = timeline.querySelectorAll(".montage-scene-card");
