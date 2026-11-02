@@ -1030,6 +1030,21 @@ document.getElementById("prepare-video-montage")
           " / " + formatPlaybackTime(montage.totalDurationSeconds);
 
         timeline.appendChild(playbackCounter);
+        
+        // Indicateur du pourcentage de progression.
+        const playbackPercentage = document.createElement("div");
+
+        playbackPercentage.textContent = "Progression : 0 %";
+
+        playbackPercentage.style.cssText =
+          "font-size:14px;" +
+          "font-weight:600;" +
+          "color:#2563eb;" +
+          "text-align:right;" +
+          "margin:4px 0 8px;";
+
+        timeline.appendChild(playbackPercentage);
+        
         // Conteneur de la barre de progression.
         const progressContainer = document.createElement("div");
         
@@ -1214,6 +1229,13 @@ document.getElementById("prepare-video-montage")
             playbackProgressBar.style.width =
               (targetSeconds / montage.totalDurationSeconds) * 100 + "%";
 
+            // Actualiser le pourcentage après un déplacement pendant la pause.
+            playbackPercentage.textContent =
+              "Progression : " +
+              Math.floor(
+                (targetSeconds / montage.totalDurationSeconds) * 100
+              ) + " %";
+
             progressContainer.setAttribute(
               "aria-valuenow",
               String(Math.floor(targetSeconds))
@@ -1331,6 +1353,10 @@ document.getElementById("prepare-video-montage")
 
             playbackProgressBar.style.width =
               Math.max(0, Math.min(100, pausedProgressPercent)) + "%";
+
+            // Synchroniser le pourcentage pendant la navigation au clavier.
+            playbackPercentage.textContent =
+              "Progression : " + Math.floor(pausedProgressPercent) + " %";
 
             // Actualiser le chronomètre pendant la pause.
             playbackCounter.textContent =
@@ -1458,6 +1484,9 @@ document.getElementById("prepare-video-montage")
             // Remettre la barre de progression à zéro après l'arrêt.
             playbackProgressBar.style.width = "0%";
 
+            // Réinitialiser le pourcentage affiché.
+            playbackPercentage.textContent = "Progression : 0 %";
+
             // Réinitialiser la position accessible du curseur.
             progressContainer.setAttribute("aria-valuenow", "0");
             progressContainer.setAttribute(
@@ -1499,6 +1528,9 @@ document.getElementById("prepare-video-montage")
 
           // Remettre la barre de progression à zéro.
           playbackProgressBar.style.width = "0%";
+
+          // Réinitialiser le pourcentage au démarrage.
+          playbackPercentage.textContent = "Progression : 0 %";
           
           playTimelineButton.textContent = "■ Arrêter la lecture";
           
@@ -1537,6 +1569,10 @@ document.getElementById("prepare-video-montage")
 
             playbackProgressBar.style.width =
               Math.max(0, Math.min(100, progressPercent)) + "%";
+
+            // Actualiser le pourcentage affiché pendant la lecture.
+            playbackPercentage.textContent =
+              "Progression : " + Math.floor(progressPercent) + " %";
 
             // Synchroniser la position accessible avec la lecture.
             progressContainer.setAttribute(
