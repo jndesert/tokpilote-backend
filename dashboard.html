@@ -1186,8 +1186,12 @@ document.getElementById("prepare-video-montage")
             Math.min(1, clickPosition / rect.width)
           );
 
+          // Atteindre exactement la fin lors d'un clic
+          // dans le dernier 1 % de la barre.
           const targetSeconds =
-            progressRatio * montage.totalDurationSeconds;
+            progressRatio >= 0.99
+              ? montage.totalDurationSeconds
+              : progressRatio * montage.totalDurationSeconds;
           
           // Ignorer le clic si le lecteur est arrêté.
           if (playbackTimer === null && !playbackPaused) {
