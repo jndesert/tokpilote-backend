@@ -1908,6 +1908,21 @@ document.getElementById("prepare-video-montage")
 
             if (!activeScene) return;
 
+            // Synchroniser la sélection visuelle avec la scène en cours.
+            const activeSceneIndex = montage.timeline.indexOf(activeScene);
+            const activeSegment = horizontalTimeline.children[activeSceneIndex];
+
+            if (
+              activeSegment &&
+              horizontalTimeline.dataset.activeSceneIndex !== String(activeSceneIndex)
+            ) {
+              horizontalTimeline.dataset.activeSceneIndex = String(activeSceneIndex);
+
+              activeSegment.dispatchEvent(
+                new MouseEvent("click", { bubbles: true, detail: 0 })
+              );
+            }
+
             // Calculer le temps écoulé dans la scène active.
             const elapsedInScene = Math.max(
               0,
