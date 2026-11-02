@@ -1070,6 +1070,7 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
       number: index + 1,
       title,
       content,
+      visualPrompt: `Illustration cinématographique de la scène "${title}". ${content.slice(0, 500)}`,
       startSeconds,
       endSeconds,
       durationSeconds,
