@@ -1712,6 +1712,12 @@ document.getElementById("prepare-video-montage")
               );
             }
 
+            // Afficher le statut définitif après un arrêt manuel.
+            playbackStatus.textContent = "⏹ Lecture arrêtée";
+            playbackStatus.style.color = "#475569";
+            playbackStatus.style.background = "#f1f5f9";
+            playbackStatus.style.borderColor = "#cbd5e1";
+
             return;
           }
 
