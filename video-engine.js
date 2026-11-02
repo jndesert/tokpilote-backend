@@ -44,6 +44,7 @@ function prepareVideoMontage(scenes) {
     return {
       sceneNumber: scene.number || index + 1,
       title: scene.title || `Scène ${index + 1}`,
+      visualPrompt: scene.visualPrompt || "",
       startSeconds: start,
       endSeconds: end,
       durationSeconds: end - start,
