@@ -962,6 +962,25 @@ document.getElementById("prepare-video-montage")
         `;
 
         timeline.appendChild(videoPreview);
+        
+        // Indicateur du temps de la scène active.
+        const sceneTimeIndicator = document.createElement("div");
+
+        sceneTimeIndicator.textContent =
+          "Scène active — Écoulé : 00:00 | Restant : 00:00";
+
+        sceneTimeIndicator.style.cssText =
+          "font-size:14px;" +
+          "font-weight:600;" +
+          "color:#1e40af;" +
+          "background:#eff6ff;" +
+          "border:1px solid #bfdbfe;" +
+          "border-radius:8px;" +
+          "padding:10px 14px;" +
+          "margin:8px 0 15px;" +
+          "text-align:center;";
+
+        timeline.appendChild(sceneTimeIndicator);
 
         // Conteneur responsive pour les boutons de lecture.
         const playbackControls = document.createElement("div");
@@ -1264,6 +1283,34 @@ document.getElementById("prepare-video-montage")
                 ? montage.timeline.length - 1
                 : -1;
 
+            // Actualiser le temps de la scène après un déplacement pendant la pause.
+            const selectedScene =
+              targetScene || (
+                targetSeconds >= montage.totalDurationSeconds
+                  ? montage.timeline[montage.timeline.length - 1]
+                  : null
+              );
+
+            if (selectedScene) {
+              const elapsedInSelectedScene = Math.max(
+                0,
+                Math.min(
+                  selectedScene.durationSeconds,
+                  targetSeconds - selectedScene.startSeconds
+                )
+              );
+
+              const remainingInSelectedScene = Math.max(
+                0,
+                selectedScene.durationSeconds - elapsedInSelectedScene
+              );
+
+              sceneTimeIndicator.textContent =
+                "Scène " + selectedScene.sceneNumber +
+                " — Écoulé : " + formatPlaybackTime(elapsedInSelectedScene) +
+                " | Restant : " + formatPlaybackTime(remainingInSelectedScene);
+            }
+
             if (targetSceneIndex >= 0) {
               const targetSegment =
                 horizontalTimeline.children[targetSceneIndex];
@@ -1382,6 +1429,34 @@ document.getElementById("prepare-video-montage")
                 ? montage.timeline.length - 1
                 : -1;
 
+            // Synchroniser le temps de la scène pendant la navigation au clavier.
+            const keyboardScene =
+              targetScene || (
+                targetSeconds >= montage.totalDurationSeconds
+                  ? montage.timeline[montage.timeline.length - 1]
+                  : null
+              );
+
+            if (keyboardScene) {
+              const keyboardSceneElapsed = Math.max(
+                0,
+                Math.min(
+                  keyboardScene.durationSeconds,
+                  targetSeconds - keyboardScene.startSeconds
+                )
+              );
+
+              const keyboardSceneRemaining = Math.max(
+                0,
+                keyboardScene.durationSeconds - keyboardSceneElapsed
+              );
+
+              sceneTimeIndicator.textContent =
+                "Scène " + keyboardScene.sceneNumber +
+                " — Écoulé : " + formatPlaybackTime(keyboardSceneElapsed) +
+                " | Restant : " + formatPlaybackTime(keyboardSceneRemaining);
+            }
+
             // Sélectionner visuellement la scène correspondante.
             if (targetSceneIndex >= 0) {
               const targetSegment = horizontalTimeline.children[targetSceneIndex];
@@ -1484,6 +1559,16 @@ document.getElementById("prepare-video-montage")
             // Remettre la barre de progression à zéro après l'arrêt.
             playbackProgressBar.style.width = "0%";
 
+            // Réinitialiser le temps de la scène active.
+            const firstScene = montage.timeline[0];
+
+            if (firstScene) {
+              sceneTimeIndicator.textContent =
+                "Scène " + firstScene.sceneNumber +
+                " — Écoulé : 00:00" +
+                " | Restant : " + formatPlaybackTime(firstScene.durationSeconds);
+            }
+
             // Réinitialiser le pourcentage affiché.
             playbackPercentage.textContent = "Progression : 0 %";
 
@@ -1531,6 +1616,16 @@ document.getElementById("prepare-video-montage")
 
           // Réinitialiser le pourcentage au démarrage.
           playbackPercentage.textContent = "Progression : 0 %";
+
+          // Réinitialiser le temps de la première scène au démarrage.
+          const startingScene = montage.timeline[0];
+
+          if (startingScene) {
+            sceneTimeIndicator.textContent =
+              "Scène " + startingScene.sceneNumber +
+              " — Écoulé : 00:00" +
+              " | Restant : " + formatPlaybackTime(startingScene.durationSeconds);
+          }
           
           playTimelineButton.textContent = "■ Arrêter la lecture";
           
@@ -1589,6 +1684,16 @@ document.getElementById("prepare-video-montage")
             // Terminer automatiquement la simulation.
             if (elapsedSeconds >= montage.totalDurationSeconds) {
 
+              // Afficher le temps final de la dernière scène.
+              const lastScene = montage.timeline[montage.timeline.length - 1];
+
+              if (lastScene) {
+                sceneTimeIndicator.textContent =
+                  "Scène " + lastScene.sceneNumber +
+                  " — Écoulé : " + formatPlaybackTime(lastScene.durationSeconds) +
+                  " | Restant : 00:00";
+              }
+
               // Afficher la dernière scène avant l'arrêt automatique.
               const lastSegment = horizontalTimeline.lastElementChild;
 
@@ -1625,6 +1730,28 @@ document.getElementById("prepare-video-montage")
             );
 
             if (!activeScene) return;
+
+            // Calculer le temps écoulé dans la scène active.
+            const elapsedInScene = Math.max(
+              0,
+              Math.min(
+                activeScene.durationSeconds,
+                elapsedSeconds - activeScene.startSeconds
+              )
+            );
+
+            // Calculer le temps restant dans la scène.
+            const remainingInScene = Math.max(
+              0,
+              activeScene.durationSeconds - elapsedInScene
+            );
+
+            // Actualiser l'indicateur de temps de la scène.
+            sceneTimeIndicator.textContent =
+              "Scène " + activeScene.sceneNumber +
+              " — Écoulé : " + formatPlaybackTime(elapsedInScene) +
+              " | Restant : " + formatPlaybackTime(remainingInScene);
+            
             // Synchroniser les sous-titres avec la scène active.
             if (
               Array.isArray(activeScene.dialogues) &&
