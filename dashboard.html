@@ -1087,6 +1087,24 @@ document.getElementById("prepare-video-montage")
           " / " + formatPlaybackTime(montage.totalDurationSeconds);
 
         timeline.appendChild(playbackCounter);
+
+        // Indicateur de l'état du lecteur.
+        const playbackStatus = document.createElement("div");
+
+        playbackStatus.textContent = "■ Lecture arrêtée";
+
+        playbackStatus.style.cssText =
+          "font-size:14px;" +
+          "font-weight:600;" +
+          "color:#475569;" +
+          "background:#f1f5f9;" +
+          "border:1px solid #cbd5e1;" +
+          "border-radius:8px;" +
+          "padding:10px 14px;" +
+          "margin:0 0 15px;" +
+          "text-align:center;";
+
+        timeline.appendChild(playbackStatus);
         
         // Indicateur du pourcentage de progression.
         const playbackPercentage = document.createElement("div");
@@ -1107,6 +1125,18 @@ document.getElementById("prepare-video-montage")
         
         // Permettre la sélection de la barre au clavier.
         progressContainer.tabIndex = 0;
+
+        // Afficher un indicateur visuel lorsque le curseur reçoit le focus.
+        progressContainer.addEventListener("focus", () => {
+          progressContainer.style.outline = "3px solid #2563eb";
+          progressContainer.style.outlineOffset = "3px";
+        });
+
+        // Retirer l'indicateur lorsque le curseur perd le focus.
+        progressContainer.addEventListener("blur", () => {
+          progressContainer.style.outline = "";
+          progressContainer.style.outlineOffset = "";
+        });
 
         // Donner un nom accessible à la barre de progression.
         progressContainer.setAttribute("aria-label", "Position de lecture de la timeline");
@@ -1576,6 +1606,14 @@ document.getElementById("prepare-video-montage")
             }
 
             pauseTimelineButton.textContent = "⏸ Pause";
+
+            // Afficher l'état de lecture en cours après une pause.
+            playbackStatus.textContent = "▶ Lecture en cours";
+            playbackStatus.style.color = "#166534";
+            playbackStatus.style.background = "#f0fdf4";
+            playbackStatus.style.borderColor = "#86efac";
+
+            // Rétablir la couleur orange du bouton Pause.
             pauseTimelineButton.style.background = "#f59e0b";
 
             return;
@@ -1600,6 +1638,12 @@ document.getElementById("prepare-video-montage")
           // Afficher le bouton Reprendre.
           pauseTimelineButton.textContent = "▶ Reprendre";
           pauseTimelineButton.style.background = "#16a34a";
+
+          // Afficher l'état de lecture en pause.
+          playbackStatus.textContent = "⏸ Lecture en pause";
+          playbackStatus.style.color = "#92400e";
+          playbackStatus.style.background = "#fffbeb";
+          playbackStatus.style.borderColor = "#fcd34d";
 
         });
 
@@ -1679,6 +1723,12 @@ document.getElementById("prepare-video-montage")
           playbackPauseStartTime = 0;
           
           playbackStartTime = Date.now();
+
+          // Afficher l'état de lecture lors d'un nouveau démarrage.
+          playbackStatus.textContent = "▶ Lecture en cours";
+          playbackStatus.style.color = "#166534";
+          playbackStatus.style.background = "#f0fdf4";
+          playbackStatus.style.borderColor = "#86efac";
           // Réinitialiser le compteur au début de la lecture.
           playbackCounter.textContent =
             "⏱ " + formatPlaybackTime(0) +
@@ -1708,6 +1758,12 @@ document.getElementById("prepare-video-montage")
             "Progression de la scène : 0 %";
           
           playTimelineButton.textContent = "■ Arrêter la lecture";
+
+          // Afficher l'état de lecture en cours.
+          playbackStatus.textContent = "▶ Lecture en cours";
+          playbackStatus.style.color = "#166534";
+          playbackStatus.style.background = "#f0fdf4";
+          playbackStatus.style.borderColor = "#86efac";
           
           // Activer le bouton Pause au démarrage de la lecture.
           pauseTimelineButton.disabled = false;
@@ -1789,10 +1845,32 @@ document.getElementById("prepare-video-montage")
                   new MouseEvent("click", { bubbles: true, detail: 0 })
                 );
               }
+              // Garantir une progression globale complète après la sélection.
+              playbackProgressBar.style.width = "100%";
+              playbackPercentage.textContent = "Progression : 100 %";
+
+              // Synchroniser l'accessibilité du curseur en fin de lecture.
+              progressContainer.setAttribute(
+                "aria-valuenow",
+                String(Math.floor(montage.totalDurationSeconds))
+              );
+
+              progressContainer.setAttribute(
+                "aria-valuetext",
+                Math.floor(montage.totalDurationSeconds) +
+                " secondes sur " +
+                montage.totalDurationSeconds + " secondes"
+              );
 
               // Arrêter le chronomètre.
               clearInterval(playbackTimer);
               playbackTimer = null;
+
+              // Afficher la durée totale et un temps restant nul en fin de lecture.
+              playbackCounter.textContent =
+                "⏱ " + formatPlaybackTime(montage.totalDurationSeconds) +
+                " / " + formatPlaybackTime(montage.totalDurationSeconds) +
+                " — ⏳ Restant : 00:00";
 
               // Réinitialiser l'état de pause.
               playbackPaused = false;
@@ -1806,6 +1884,12 @@ document.getElementById("prepare-video-montage")
               pauseTimelineButton.disabled = true;
               pauseTimelineButton.textContent = "⏸ Pause";
               pauseTimelineButton.style.background = "#64748b";
+
+              // Afficher le statut de fin de lecture.
+              playbackStatus.textContent = "✅ Lecture terminée";
+              playbackStatus.style.color = "#166534";
+              playbackStatus.style.background = "#f0fdf4";
+              playbackStatus.style.borderColor = "#86efac";
 
               return;
             }
