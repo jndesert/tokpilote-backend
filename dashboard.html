@@ -2079,6 +2079,19 @@ document.getElementById("prepare-video-montage")
         audioGenerated: false
       }, null, 2);
 
+      // Aller automatiquement à la prévisualisation
+      // après la préparation réussie du montage.
+      const previewSection = document.getElementById(
+        "videapilot-scene-preview"
+      );
+
+      if (previewSection) {
+        previewSection.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+      }
+
     } catch (error) {
       result.textContent = "Erreur : " + error.message;
     }
