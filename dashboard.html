@@ -982,6 +982,30 @@ document.getElementById("prepare-video-montage")
 
         timeline.appendChild(sceneTimeIndicator);
 
+        // Conteneur de progression de la scène active.
+        const sceneProgressContainer = document.createElement("div");
+
+        sceneProgressContainer.style.cssText =
+          "width:100%;" +
+          "height:10px;" +
+          "background:#e5e7eb;" +
+          "border-radius:10px;" +
+          "overflow:hidden;" +
+          "margin:0 0 15px;";
+
+        // Barre bleue indiquant la progression de la scène.
+        const sceneProgressBar = document.createElement("div");
+
+        sceneProgressBar.style.cssText =
+          "width:0%;" +
+          "height:100%;" +
+          "background:#2563eb;" +
+          "border-radius:10px;" +
+          "transition:width 0.3s ease;";
+
+        sceneProgressContainer.appendChild(sceneProgressBar);
+        timeline.appendChild(sceneProgressContainer);
+
         // Conteneur responsive pour les boutons de lecture.
         const playbackControls = document.createElement("div");
 
@@ -1305,6 +1329,15 @@ document.getElementById("prepare-video-montage")
                 selectedScene.durationSeconds - elapsedInSelectedScene
               );
 
+              // Synchroniser la barre de la scène après un clic pendant la pause.
+              const selectedSceneProgress =
+                selectedScene.durationSeconds > 0
+                  ? (elapsedInSelectedScene / selectedScene.durationSeconds) * 100
+                  : 0;
+
+              sceneProgressBar.style.width =
+                Math.max(0, Math.min(100, selectedSceneProgress)) + "%";
+
               sceneTimeIndicator.textContent =
                 "Scène " + selectedScene.sceneNumber +
                 " — Écoulé : " + formatPlaybackTime(elapsedInSelectedScene) +
@@ -1451,6 +1484,15 @@ document.getElementById("prepare-video-montage")
                 keyboardScene.durationSeconds - keyboardSceneElapsed
               );
 
+              // Synchroniser la barre de la scène pendant la navigation au clavier.
+              const keyboardSceneProgress =
+                keyboardScene.durationSeconds > 0
+                  ? (keyboardSceneElapsed / keyboardScene.durationSeconds) * 100
+                  : 0;
+
+              sceneProgressBar.style.width =
+                Math.max(0, Math.min(100, keyboardSceneProgress)) + "%";
+
               sceneTimeIndicator.textContent =
                 "Scène " + keyboardScene.sceneNumber +
                 " — Écoulé : " + formatPlaybackTime(keyboardSceneElapsed) +
@@ -1569,6 +1611,9 @@ document.getElementById("prepare-video-montage")
                 " | Restant : " + formatPlaybackTime(firstScene.durationSeconds);
             }
 
+            // Réinitialiser la barre de progression de la scène.
+            sceneProgressBar.style.width = "0%";
+
             // Réinitialiser le pourcentage affiché.
             playbackPercentage.textContent = "Progression : 0 %";
 
@@ -1626,6 +1671,9 @@ document.getElementById("prepare-video-montage")
               " — Écoulé : 00:00" +
               " | Restant : " + formatPlaybackTime(startingScene.durationSeconds);
           }
+
+          // Réinitialiser la progression de la scène au démarrage.
+          sceneProgressBar.style.width = "0%";
           
           playTimelineButton.textContent = "■ Arrêter la lecture";
           
@@ -1692,6 +1740,9 @@ document.getElementById("prepare-video-montage")
                   "Scène " + lastScene.sceneNumber +
                   " — Écoulé : " + formatPlaybackTime(lastScene.durationSeconds) +
                   " | Restant : 00:00";
+
+                // Terminer la progression de la dernière scène.
+                sceneProgressBar.style.width = "100%";
               }
 
               // Afficher la dernière scène avant l'arrêt automatique.
@@ -1745,6 +1796,16 @@ document.getElementById("prepare-video-montage")
               0,
               activeScene.durationSeconds - elapsedInScene
             );
+
+            // Calculer la progression de la scène active.
+            const sceneProgressPercent =
+              activeScene.durationSeconds > 0
+                ? (elapsedInScene / activeScene.durationSeconds) * 100
+                : 0;
+
+            // Actualiser la barre de progression de la scène.
+            sceneProgressBar.style.width =
+             Math.max(0, Math.min(100, sceneProgressPercent)) + "%";
 
             // Actualiser l'indicateur de temps de la scène.
             sceneTimeIndicator.textContent =
