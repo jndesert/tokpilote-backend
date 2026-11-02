@@ -1006,6 +1006,20 @@ document.getElementById("prepare-video-montage")
         sceneProgressContainer.appendChild(sceneProgressBar);
         timeline.appendChild(sceneProgressContainer);
 
+        // Indicateur du pourcentage de progression de la scène.
+        const sceneProgressPercentage = document.createElement("div");
+
+        sceneProgressPercentage.textContent = "Progression de la scène : 0 %";
+
+        sceneProgressPercentage.style.cssText =
+          "font-size:13px;" +
+          "font-weight:600;" +
+          "color:#2563eb;" +
+          "text-align:right;" +
+          "margin:0 0 15px;";
+
+        timeline.appendChild(sceneProgressPercentage);
+
         // Conteneur responsive pour les boutons de lecture.
         const playbackControls = document.createElement("div");
 
@@ -1338,6 +1352,11 @@ document.getElementById("prepare-video-montage")
               sceneProgressBar.style.width =
                 Math.max(0, Math.min(100, selectedSceneProgress)) + "%";
 
+              // Actualiser le pourcentage de la scène après un clic pendant la pause.
+              sceneProgressPercentage.textContent =
+                "Progression de la scène : " +
+                Math.floor(selectedSceneProgress) + " %";
+
               sceneTimeIndicator.textContent =
                 "Scène " + selectedScene.sceneNumber +
                 " — Écoulé : " + formatPlaybackTime(elapsedInSelectedScene) +
@@ -1493,6 +1512,11 @@ document.getElementById("prepare-video-montage")
               sceneProgressBar.style.width =
                 Math.max(0, Math.min(100, keyboardSceneProgress)) + "%";
 
+              // Actualiser le pourcentage de la scène pendant la navigation au clavier.
+              sceneProgressPercentage.textContent =
+                "Progression de la scène : " +
+                Math.floor(keyboardSceneProgress) + " %";
+
               sceneTimeIndicator.textContent =
                 "Scène " + keyboardScene.sceneNumber +
                 " — Écoulé : " + formatPlaybackTime(keyboardSceneElapsed) +
@@ -1614,6 +1638,10 @@ document.getElementById("prepare-video-montage")
             // Réinitialiser la barre de progression de la scène.
             sceneProgressBar.style.width = "0%";
 
+            // Réinitialiser le pourcentage de progression de la scène.
+            sceneProgressPercentage.textContent =
+              "Progression de la scène : 0 %";
+
             // Réinitialiser le pourcentage affiché.
             playbackPercentage.textContent = "Progression : 0 %";
 
@@ -1674,6 +1702,10 @@ document.getElementById("prepare-video-montage")
 
           // Réinitialiser la progression de la scène au démarrage.
           sceneProgressBar.style.width = "0%";
+
+          // Réinitialiser le pourcentage de la scène au démarrage.
+          sceneProgressPercentage.textContent =
+            "Progression de la scène : 0 %";
           
           playTimelineButton.textContent = "■ Arrêter la lecture";
           
@@ -1743,6 +1775,10 @@ document.getElementById("prepare-video-montage")
 
                 // Terminer la progression de la dernière scène.
                 sceneProgressBar.style.width = "100%";
+
+                // Afficher 100 % à la fin de la dernière scène.
+                sceneProgressPercentage.textContent =
+                  "Progression de la scène : 100 %";
               }
 
               // Afficher la dernière scène avant l'arrêt automatique.
@@ -1806,6 +1842,11 @@ document.getElementById("prepare-video-montage")
             // Actualiser la barre de progression de la scène.
             sceneProgressBar.style.width =
              Math.max(0, Math.min(100, sceneProgressPercent)) + "%";
+
+            // Actualiser le pourcentage de progression de la scène.
+            sceneProgressPercentage.textContent =
+              "Progression de la scène : " +
+              Math.floor(sceneProgressPercent) + " %";
 
             // Actualiser l'indicateur de temps de la scène.
             sceneTimeIndicator.textContent =
