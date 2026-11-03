@@ -59,6 +59,28 @@ async function initializeVideoProjects() {
   console.log("Table des projets vidéo prête");
 }
 
+
+ // Initialisation du suivi des générations d'images IA
+async function initializeImageUsage() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS image_usage (
+      user_id TEXT PRIMARY KEY,
+      window_start TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      request_count INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+
+  console.log("Table des quotas images IA prête");
+}
+
+initializeImageUsage().catch((error) => {
+  console.error(
+    "Erreur initialisation quotas images IA :",
+    error.message
+  );
+});
+
+
 initializeVideoProjects().catch((error) => {
   console.error(
     "Erreur initialisation projets vidéo :",
