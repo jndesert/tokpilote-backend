@@ -118,6 +118,40 @@ initializeImageUsage().catch((error) => {
   );
 });
 
+/**
+ * VidéaPilot — Suivi des demandes d'images IA
+ * Prépare la gestion des générations et des échecs.
+ */
+async function initializeImageGenerationJobs() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS image_generation_jobs (
+      id BIGSERIAL PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (
+          status IN (
+            'pending',
+            'processing',
+            'completed',
+            'failed'
+          )
+        ),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      error_code TEXT
+    )
+  `);
+
+  console.log("Table de suivi des images IA prête");
+}
+
+initializeImageGenerationJobs().catch((error) => {
+  console.error(
+    "Erreur initialisation suivi images IA :",
+    error.message
+  );
+});
+
  // VidéaPilot — Initialisation du quota global des images IA
 async function initializeImageGlobalUsage() {
   await pool.query(`
