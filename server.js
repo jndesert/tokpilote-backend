@@ -1453,12 +1453,13 @@ app.post("/api/ai/generate-scene-image", async (req, res) => {
         `
         INSERT INTO image_generation_jobs (
           user_id,
+          scene_id,
           status
         )
-        VALUES ($1, 'pending')
-        RETURNING id, status
+        VALUES ($1, $2, 'pending')
+        RETURNING id, scene_id, status
         `,
-        [userId]
+        [userId, sceneId]
       );
 
       imageJobId = jobResult.rows[0].id;
