@@ -141,6 +141,17 @@ async function initializeImageGenerationJobs() {
       error_code TEXT
     )
   `);
+  
+  // VidéaPilot — Préparer le stockage des images générées
+  await pool.query(`
+    ALTER TABLE image_generation_jobs
+    ADD COLUMN IF NOT EXISTS image_url TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE image_generation_jobs
+    ADD COLUMN IF NOT EXISTS scene_id TEXT
+  `);
 
   console.log("Table de suivi des images IA prête");
 }
