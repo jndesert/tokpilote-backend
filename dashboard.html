@@ -354,6 +354,7 @@ document.getElementById("video-form")
 
       form.reset();
       delete form.dataset.editId;
+      delete form.dataset.savedScript;
 
       await loadVideoProjects();
 
@@ -433,6 +434,8 @@ async function loadVideoProjects() {
         document.getElementById("video-script").value = project.script || "";
 
         form.dataset.editId = project.id;
+        form.dataset.savedScript = (project.script || "").trim();
+        
         section.style.display = "block";
 
         section.scrollIntoView({
@@ -626,6 +629,23 @@ document.getElementById("test-scenes").addEventListener("click", async () => {
       "Veuillez d'abord générer ou saisir un scénario vidéo.";
     return;
   }
+  // Vérifier qu'un projet vidéo existant est sélectionné.
+  const projectId = document.getElementById("video-form").dataset.editId;
+
+  if (!projectId) {
+    result.textContent =
+      "Veuillez d'abord enregistrer votre projet, puis cliquer sur « Modifier » pour préparer ses scènes.";
+    return;
+  }
+
+  // Vérifier que le scénario correspond à la version enregistrée.
+  const savedScript = document.getElementById("video-form").dataset.savedScript;
+
+  if (savedScript === undefined || script !== savedScript) {
+    result.textContent =
+      "Le scénario a été modifié ou n'a pas été vérifié. Enregistrez le projet avant de préparer ses scènes.";
+    return;
+  }
 
   result.textContent = "Préparation des scènes en cours...";
 
@@ -636,7 +656,10 @@ document.getElementById("test-scenes").addEventListener("click", async () => {
         "Content-Type": "application/json"
       },
       credentials: "same-origin",
-      body: JSON.stringify({ script })
+      body: JSON.stringify({
+        script,
+        projectId: document.getElementById("video-form").dataset.editId
+      })
     });
 
     const data = await response.json();
@@ -668,6 +691,25 @@ document.getElementById("prepare-video-montage")
       return;
     }
 
+    // Vérifier que le projet vidéo est sélectionné.
+    const form = document.getElementById("video-form");
+    const projectId = form.dataset.editId;
+
+    if (!projectId) {
+      result.textContent =
+        "Veuillez d'abord enregistrer votre projet, puis cliquer sur « Modifier ».";
+      return;
+    }
+
+    // Vérifier que le scénario correspond à la version enregistrée.
+    const savedScript = form.dataset.savedScript;
+
+    if (savedScript === undefined || script !== savedScript) {
+      result.textContent =
+        "Le scénario a été modifié. Enregistrez le projet avant de préparer le montage.";
+      return;
+    }
+
     result.textContent = "Préparation du plan de montage...";
 
     try {
@@ -677,7 +719,10 @@ document.getElementById("prepare-video-montage")
           "Content-Type": "application/json"
         },
         credentials: "same-origin",
-        body: JSON.stringify({ script })
+        body: JSON.stringify({
+          script,
+          projectId
+        })
       });
 
       const data = await response.json();
