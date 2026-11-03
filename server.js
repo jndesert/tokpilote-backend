@@ -1120,18 +1120,6 @@ app.post("/api/ai/generate-scene-image", async (req, res) => {
     });
   }
 
-  
-  // Vérifier si la génération d'images IA est activée
-  if (process.env.IMAGE_GENERATION_ENABLED !== "true") {
-    return res.status(503).json({
-      success: false,
-      status: "image_generation_disabled",
-      error: "IMAGE_GENERATION_DISABLED",
-      imageGenerated: false,
-      message: "La génération d'images IA est désactivée."
-    });
-  }
-  
   // VidéaPilot — Mode de préparation sans génération
   if (process.env.IMAGE_GENERATION_DRY_RUN === "true") {
     return res.json({
@@ -1141,6 +1129,17 @@ app.post("/api/ai/generate-scene-image", async (req, res) => {
       quotaConsumed: false,
       message:
         "Moteur prêt. Aucun appel OpenAI et aucun quota consommé."
+    });
+  }
+
+  // Vérifier si la génération d'images IA est activée
+  if (process.env.IMAGE_GENERATION_ENABLED !== "true") {
+    return res.status(503).json({
+      success: false,
+      status: "image_generation_disabled",
+      error: "IMAGE_GENERATION_DISABLED",
+      imageGenerated: false,
+      message: "La génération d'images IA est désactivée."
     });
   }
   
