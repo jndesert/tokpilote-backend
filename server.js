@@ -80,6 +80,24 @@ initializeImageUsage().catch((error) => {
   );
 });
 
+ // VidéaPilot — Initialisation du quota global des images IA
+async function initializeImageGlobalUsage() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS image_global_usage (
+      usage_date DATE PRIMARY KEY,
+      request_count INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+
+  console.log("Table du quota global images IA prête");
+}
+
+initializeImageGlobalUsage().catch((error) => {
+  console.error(
+    "Erreur initialisation quota global images IA :",
+    error.message
+  );
+});
 
 initializeVideoProjects().catch((error) => {
   console.error(
