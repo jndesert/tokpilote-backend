@@ -180,6 +180,68 @@ async function createImageGenerationJob(userId) {
   };
 }
 
+/**
+ * VidéaPilot — Mise à jour du statut d'une demande d'image IA
+ */
+async function updateImageGenerationJob(
+  jobId,
+  userId,
+  status,
+  errorCode = null
+) {
+  const allowedStatuses = [
+    "processing",
+    "completed",
+    "failed"
+  ];
+
+  if (!allowedStatuses.includes(status)) {
+    throw new Error("INVALID_IMAGE_JOB_STATUS");
+  }
+
+  if (
+    !Number.isSafeInteger(Number(jobId)) ||
+    Number(jobId) <= 0 ||
+    typeof userId !== "string" ||
+    !userId.trim()
+  ) {
+    throw new Error("INVALID_IMAGE_JOB_IDENTIFIERS");
+  }
+
+  const result = await pool.query(
+    `
+    UPDATE image_generation_jobs
+    SET
+      status = $3,
+      error_code = CASE
+        WHEN $3 = 'failed' THEN $4
+        ELSE NULL
+      END,
+      updated_at = NOW()
+    WHERE id = $1
+      AND user_id = $2
+      AND (
+        (status = 'pending' AND $3 = 'processing')
+        OR
+        (status = 'processing' AND $3 IN ('completed', 'failed'))
+      )
+    RETURNING id, status, updated_at, error_code
+    `,
+    [jobId, userId, status, errorCode]
+  );
+
+  if (result.rows.length === 0) {
+    throw new Error("IMAGE_JOB_TRANSITION_NOT_ALLOWED");
+  }
+
+  return {
+    jobId: result.rows[0].id,
+    status: result.rows[0].status,
+    updatedAt: result.rows[0].updated_at,
+    errorCode: result.rows[0].error_code
+  };
+}
+
  // VidéaPilot — Initialisation du quota global des images IA
 async function initializeImageGlobalUsage() {
   await pool.query(`
@@ -679,8 +741,6 @@ async function getAudioQuotaStatus(userId) {
     remaining: Math.max(0, 5 - count)
   };
 }
-
-
 
 // Génération de scripts IA avec quota PostgreSQL
 app.post("/api/ai/generate-script", async (req, res) => {
