@@ -242,6 +242,36 @@ async function updateImageGenerationJob(
   };
 }
 
+/**
+ * VidéaPilot — Orchestration des demandes d'images IA
+ * Préparation sécurisée : aucun appel OpenAI.
+ */
+async function processImageGenerationJob(
+  jobId,
+  userId,
+  visualPrompt
+) {
+  if (
+    !Number.isSafeInteger(Number(jobId)) ||
+    Number(jobId) <= 0 ||
+    typeof userId !== "string" ||
+    !userId.trim()
+  ) {
+    throw new Error("INVALID_IMAGE_JOB_IDENTIFIERS");
+  }
+
+  if (
+    typeof visualPrompt !== "string" ||
+    !visualPrompt.trim() ||
+    visualPrompt.length > 3000
+  ) {
+    throw new Error("INVALID_VISUAL_PROMPT");
+  }
+
+  // Empêcher toute exécution tant que le moteur n'est pas prêt.
+  throw new Error("IMAGE_PROCESSING_NOT_READY");
+}
+
  // VidéaPilot — Initialisation du quota global des images IA
 async function initializeImageGlobalUsage() {
   await pool.query(`
