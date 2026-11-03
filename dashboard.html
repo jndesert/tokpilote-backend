@@ -2031,6 +2031,7 @@ document.getElementById("prepare-video-montage")
           
           card.classList.add("montage-scene-card");
           card.dataset.sceneNumber = String(scene.sceneNumber);
+          card.dataset.sceneId = scene.sceneId || "";
 
           card.style.cssText =
             "padding:12px;margin-bottom:10px;" +
