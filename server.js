@@ -1032,15 +1032,26 @@ app.post("/api/ai/generate-scene-image", async (req, res) => {
     });
   }
 
-  // Mode test : aucun appel OpenAI et aucun quota réservé
+  
+  // Vérifier si la génération d'images IA est activée
+  if (process.env.IMAGE_GENERATION_ENABLED !== "true") {
+    return res.status(503).json({
+      success: false,
+      status: "image_generation_disabled",
+      error: "IMAGE_GENERATION_DISABLED",
+      imageGenerated: false,
+      message: "La génération d'images IA est désactivée."
+    });
+  }
+
+  // Mode préparatoire : aucun appel OpenAI pour le moment
   return res.json({
     success: true,
     status: "image_generation_ready",
     imageGenerated: false,
-    message: "Description visuelle validée."
+    message: "Génération d'images prête pour intégration OpenAI."
   });
 });
-
 
 app.post("/api/ai/prepare-scenes", async (req, res) => {
   res.set("Cache-Control", "no-store");
