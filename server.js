@@ -1094,13 +1094,141 @@ app.post("/api/ai/generate-scene-image", async (req, res) => {
     });
   }
 
-  // Mode préparatoire : aucun appel OpenAI pour le moment
-  return res.json({
-    success: true,
-    status: "image_generation_ready",
-    imageGenerated: false,
-    message: "Génération d'images prête pour intégration OpenAI."
-  });
+  
+  // Vérifier et réserver les quotas d'images IA
+  const userId = req.session.tiktokUser.openId;
+
+  try {
+    const client = await pool.connect();
+
+    let individualQuota;
+    let globalQuota;
+
+    try {
+      await client.query("BEGIN");
+
+      // Verrouiller les réservations pour éviter les dépassements
+      await client.query(
+        "SELECT pg_advisory_xact_lock($1)",
+        [20261027]
+      );
+
+      // Vérifier le quota individuel sans encore le consommer
+      const individualResult = await client.query(
+        `
+        SELECT request_count, window_start
+        FROM image_usage
+        WHERE user_id = $1
+        `,
+        [userId]
+      );
+
+      const individualRow = individualResult.rows[0];
+
+      const individualExpired =
+        !individualRow ||
+        new Date(individualRow.window_start).getTime() <=
+          Date.now() - 60 * 60 * 1000;
+
+      if (!individualExpired && individualRow.request_count >= 5) {
+        await client.query("ROLLBACK");
+
+        return res.status(429).json({
+          success: false,
+          error: "IMAGE_USER_QUOTA_EXCEEDED",
+          message: "Limite de 5 demandes d'images par heure atteinte."
+        });
+      }
+
+      // Vérifier le quota global quotidien UTC
+      const globalResult = await client.query(
+        `
+        SELECT request_count
+        FROM image_global_usage
+        WHERE usage_date = (NOW() AT TIME ZONE 'UTC')::date
+        `
+      );
+
+      const globalCount =
+        globalResult.rows[0]?.request_count ?? 0;
+
+      if (globalCount >= 20) {
+        await client.query("ROLLBACK");
+
+        return res.status(429).json({
+          success: false,
+          error: "IMAGE_GLOBAL_QUOTA_EXCEEDED",
+          message: "Limite globale de 20 demandes d'images par jour atteinte."
+        });
+      }
+
+      // Réserver les deux quotas dans une seule transaction
+      const reservedIndividual = await client.query(
+        `
+        INSERT INTO image_usage (
+          user_id, window_start, request_count
+        )
+        VALUES ($1, NOW(), 1)
+        ON CONFLICT (user_id)
+        DO UPDATE SET
+          window_start = CASE
+            WHEN image_usage.window_start <= NOW() - INTERVAL '1 hour'
+            THEN NOW()
+            ELSE image_usage.window_start
+          END,
+          request_count = CASE
+            WHEN image_usage.window_start <= NOW() - INTERVAL '1 hour'
+            THEN 1
+            ELSE image_usage.request_count + 1
+          END
+        RETURNING request_count
+        `,
+        [userId]
+      );
+
+      const reservedGlobal = await client.query(
+        `
+        INSERT INTO image_global_usage (
+          usage_date, request_count
+        )
+        VALUES ((NOW() AT TIME ZONE 'UTC')::date, 1)
+        ON CONFLICT (usage_date)
+        DO UPDATE SET
+          request_count = image_global_usage.request_count + 1
+        RETURNING request_count
+        `
+      );
+
+      individualQuota = reservedIndividual.rows[0].request_count;
+      globalQuota = reservedGlobal.rows[0].request_count;
+
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    // Mode préparatoire : aucun appel OpenAI
+    return res.json({
+      success: true,
+      status: "image_quota_reserved",
+      imageGenerated: false,
+      individualQuotaCount: individualQuota,
+      globalQuotaCount: globalQuota,
+      message: "Quotas réservés. Génération OpenAI non activée."
+    });
+
+  } catch (error) {
+    console.error("Erreur quotas images IA :", error);
+
+    return res.status(503).json({
+      success: false,
+      error: "IMAGE_QUOTA_UNAVAILABLE",
+      imageGenerated: false
+    });
+  }
 });
 
 app.post("/api/ai/prepare-scenes", async (req, res) => {
