@@ -1264,9 +1264,22 @@ app.post("/api/ai/generate-scene-image", async (req, res) => {
       message: "La génération d'images IA est désactivée."
     });
   }
+
+  // VidéaPilot — Verrouillage temporaire du traitement des images IA
+  return res.status(503).json({
+    success: false,
+    status: "image_processing_not_ready",
+    error: "IMAGE_PROCESSING_NOT_READY",
+    imageGenerated: false,
+    quotaConsumed: false,
+    message: "Le traitement des images IA est en cours de préparation."
+  });
   
   // Vérifier et réserver les quotas d'images IA
   const userId = req.session.tiktokUser.openId;
+
+  // VidéaPilot — Identifiant du job de génération d'image
+  let imageJobId = null;
 
   try {
     const client = await pool.connect();
@@ -1372,6 +1385,21 @@ app.post("/api/ai/generate-scene-image", async (req, res) => {
       individualQuota = reservedIndividual.rows[0].request_count;
       globalQuota = reservedGlobal.rows[0].request_count;
 
+      // VidéaPilot — Créer le job dans la même transaction
+      const jobResult = await client.query(
+        `
+        INSERT INTO image_generation_jobs (
+          user_id,
+          status
+        )
+        VALUES ($1, 'pending')
+        RETURNING id, status
+        `,
+        [userId]
+      );
+
+      imageJobId = jobResult.rows[0].id;
+
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
@@ -1379,7 +1407,6 @@ app.post("/api/ai/generate-scene-image", async (req, res) => {
     } finally {
       client.release();
     }
-
     
     // VidéaPilot — Préparation de la génération réelle
     // La génération reste désactivée tant que
@@ -1388,13 +1415,13 @@ app.post("/api/ai/generate-scene-image", async (req, res) => {
     // Mode préparatoire : aucune génération OpenAI
     return res.json({
       success: true,
-      status: "image_engine_connected",
+      status: "image_job_pending",
       imageGenerated: false,
+      imageJobId: imageJobId,
       individualQuotaCount: individualQuota,
       globalQuotaCount: globalQuota,
-      message: "Moteur OpenAI connecté. Génération non déclenchée."
+      message: "Demande d'image IA enregistrée. Génération non déclenchée."
     });
-
 
   } catch (error) {
     console.error("Erreur quotas images IA :", error);
