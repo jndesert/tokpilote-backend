@@ -152,6 +152,34 @@ initializeImageGenerationJobs().catch((error) => {
   );
 });
 
+/**
+ * VidéaPilot — Enregistrement d'une demande d'image IA
+ * Crée une demande en attente sans appeler OpenAI.
+ */
+async function createImageGenerationJob(userId) {
+  if (typeof userId !== "string" || !userId.trim()) {
+    throw new Error("INVALID_IMAGE_JOB_USER");
+  }
+
+  const result = await pool.query(
+    `
+    INSERT INTO image_generation_jobs (
+      user_id,
+      status
+    )
+    VALUES ($1, 'pending')
+    RETURNING id, status, created_at
+    `,
+    [userId]
+  );
+
+  return {
+    jobId: result.rows[0].id,
+    status: result.rows[0].status,
+    createdAt: result.rows[0].created_at
+  };
+}
+
  // VidéaPilot — Initialisation du quota global des images IA
 async function initializeImageGlobalUsage() {
   await pool.query(`
