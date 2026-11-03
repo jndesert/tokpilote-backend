@@ -116,14 +116,10 @@ async function initializeVideoProjectScenes() {
     )
   `);
 
-  console.log("Table des scènes vidéo prête");
+   console.log("Table des scènes vidéo prête");
 }
 
 // Initialisation du suivi des générations d'images IA
-async function initializeImageUsage() {
-
-
- // Initialisation du suivi des générations d'images IA
 async function initializeImageUsage() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS image_usage (
