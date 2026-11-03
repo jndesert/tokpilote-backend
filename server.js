@@ -1070,7 +1070,21 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
       number: index + 1,
       title,
       content,
-      visualPrompt: `Illustration cinématographique de la scène "${title}". ${content.slice(0, 500)}`,
+      visualPrompt: [ 
+        `Illustration cinématographique de la scène "${title}".`,
+        `Description de la scène : ${content.slice(0, 500)}`,
+        `Personnages présents : ${
+          characters.filter(character =>
+            dialogues.some(dialogue => dialogue.speaker === character)
+          ).join(", ") || "Aucun personnage identifié"
+        }.`,
+        "Style visuel : animation 3D cinématographique,",
+        "personnages expressifs, éclairage soigné,",
+        "composition professionnelle, couleurs harmonieuses.",
+        "Respecter la continuité visuelle des personnages",
+        "et des décors entre les différentes scènes.",
+        "Ne pas intégrer de texte dans l'image."
+      ].join(" "),
       startSeconds,
       endSeconds,
       durationSeconds,
