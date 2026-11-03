@@ -951,6 +951,7 @@ app.post("/api/ai/complete-script", async (req, res) => {
     });
   }
 
+  // Récupérer le scénario à compléter.
   const { script } = req.body || {};
 
   if (
@@ -958,17 +959,54 @@ app.post("/api/ai/complete-script", async (req, res) => {
     !script.trim() ||
     script.length > 15000
   ) {
+   // Vérifier l'identifiant du projet vidéo.
+  if (
+    projectId !== undefined &&
+    !/^[1-9]\d*$/.test(String(projectId))
+  ) {
     return res.status(400).json({
-      message: "Scénario invalide (15000 caractères maximum)."
+      success: false,
+      error: "INVALID_PROJECT_ID",
+      message: "Identifiant du projet vidéo invalide."
     });
   }
 
-  try {
-    const quota = await reserveAiGeneration(userId);
+  // Vérifier que le projet appartient à l'utilisateur connecté.
+if (projectId !== undefined) {
+  const userId = req.session.tiktokUser.openId;
 
-    if (!quota.allowed) {
-      return res.status(429).json({
-        message: "Limite atteinte : 5 générations IA par heure."
+  let projectResult;
+
+  try {
+    projectResult = await pool.query(
+      `
+      SELECT id
+      FROM video_projects
+      WHERE id = $1 AND user_id = $2
+      `,
+      [projectId, userId]
+    );
+  } catch (error) {
+    console.error(
+      "Erreur vérification du projet vidéo :",
+      error.message
+    );
+
+    return res.status(503).json({
+      success: false,
+      error: "PROJECT_LOOKUP_UNAVAILABLE"
+    });
+  }
+
+  if (projectResult.rows.length === 0) {
+    return res.status(404).json({
+      success: false,
+      error: "PROJECT_NOT_FOUND",
+      message: "Projet vidéo introuvable."
+    });
+  }
+}
+
       });
     }
   } catch (error) {
@@ -1537,8 +1575,8 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     });
   }
 
-  // Vérifier le scénario
-  const { script } = req.body || {};
+  // Récupérer le scénario et l'identifiant du projet vidéo.
+  const { script, projectId } = req.body || {};
 
   if (
     typeof script !== "string" ||
@@ -1548,6 +1586,54 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     return res.status(400).json({
       message: "Scénario invalide (20000 caractères maximum)."
     });
+  }
+
+  // Vérifier l'identifiant du projet vidéo.
+  if (
+    projectId !== undefined &&
+    !/^[1-9]\d*$/.test(String(projectId))
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: "INVALID_PROJECT_ID",
+      message: "Identifiant du projet vidéo invalide."
+    });
+  }
+
+  // Vérifier que le projet appartient à l'utilisateur connecté.
+  if (projectId !== undefined) {
+    const userId = req.session.tiktokUser.openId;
+
+    let projectResult;
+
+    try {
+      projectResult = await pool.query(
+        `
+        SELECT id
+        FROM video_projects
+        WHERE id = $1 AND user_id = $2
+        `,
+        [projectId, userId]
+      );
+    } catch (error) {
+      console.error(
+        "Erreur vérification du projet vidéo :",
+        error.message
+      );
+
+      return res.status(503).json({
+        success: false,
+        error: "PROJECT_LOOKUP_UNAVAILABLE"
+      });
+    }
+
+    if (projectResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "PROJECT_NOT_FOUND",
+        message: "Projet vidéo introuvable."
+      });
+    }
   }
 
   // Identifier les scènes, avec ou sans Markdown ou numérotation préalable.
@@ -2179,6 +2265,75 @@ const audioTestPreview = {
   execute: false,
   status: "preview_only"
 };
+
+  // Enregistrer les scènes dans le projet vidéo de l'utilisateur.
+  if (projectId !== undefined) {
+  let client;
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+      // Verrouiller le projet pendant l'enregistrement des scènes.
+      await client.query(
+        "SELECT id FROM video_projects WHERE id = $1 FOR UPDATE",
+        [projectId]
+      );
+
+      // Remplacer les anciennes scènes du projet.
+      await client.query(
+        "DELETE FROM video_project_scenes WHERE project_id = $1",
+        [projectId]
+      );
+
+      // Enregistrer les nouvelles scènes dans leur ordre.
+      for (const scene of scenes) {
+        await client.query(
+          `
+          INSERT INTO video_project_scenes
+            (scene_id, project_id, scene_number, title, visual_prompt)
+          VALUES ($1, $2, $3, $4, $5)
+          `,
+          [
+            scene.sceneId,
+            projectId,
+            scene.number,
+            scene.title,
+            scene.visualPrompt || ""
+          ]
+        );
+      }
+
+      await client.query("COMMIT");
+    } catch (error) {
+
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error(
+          "Erreur annulation transaction des scènes vidéo :",
+          rollbackError.message
+        );
+      }
+    }
+
+      console.error(
+        "Erreur enregistrement des scènes vidéo :",
+        error.message
+      );
+
+      return res.status(503).json({
+        success: false,
+        error: "SCENE_SAVE_UNAVAILABLE",
+        message: "Impossible d'enregistrer les scènes du projet."
+      });
+    } finally {
+      if (client) {
+        client.release();
+      }
+    }  
+  }
   
   return res.json({
     success: true,
