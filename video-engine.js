@@ -1,6 +1,8 @@
 
 "use strict";
 
+const { randomUUID } = require("node:crypto");
+
 // VidéaPilot — Moteur de préparation du montage vidéo.
 // Préparation locale uniquement : aucune API payante.
 
@@ -42,7 +44,7 @@ function prepareVideoMontage(scenes) {
     );
 
     return {
-      sceneId: scene.sceneId || scene.id || null,
+      sceneId: scene.sceneId || scene.id || randomUUID(),
       sceneNumber: scene.number || index + 1,
       title: scene.title || `Scène ${index + 1}`,
       visualPrompt: scene.visualPrompt || "",
