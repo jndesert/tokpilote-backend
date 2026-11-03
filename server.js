@@ -1131,7 +1131,18 @@ app.post("/api/ai/generate-scene-image", async (req, res) => {
       message: "La génération d'images IA est désactivée."
     });
   }
-
+  
+  // VidéaPilot — Mode de préparation sans génération
+  if (process.env.IMAGE_GENERATION_DRY_RUN === "true") {
+    return res.json({
+      success: true,
+      status: "image_generation_dry_run",
+      imageGenerated: false,
+      quotaConsumed: false,
+      message:
+        "Moteur prêt. Aucun appel OpenAI et aucun quota consommé."
+    });
+  }
   
   // Vérifier et réserver les quotas d'images IA
   const userId = req.session.tiktokUser.openId;
@@ -1248,15 +1259,21 @@ app.post("/api/ai/generate-scene-image", async (req, res) => {
       client.release();
     }
 
-    // Mode préparatoire : aucun appel OpenAI
+    
+    // VidéaPilot — Préparation de la génération réelle
+    // La génération reste désactivée tant que
+    // IMAGE_GENERATION_ENABLED n'est pas à "true".
+
+    // Mode préparatoire : aucune génération OpenAI
     return res.json({
       success: true,
-      status: "image_quota_reserved",
+      status: "image_engine_connected",
       imageGenerated: false,
       individualQuotaCount: individualQuota,
       globalQuotaCount: globalQuota,
-      message: "Quotas réservés. Génération OpenAI non activée."
+      message: "Moteur OpenAI connecté. Génération non déclenchée."
     });
+
 
   } catch (error) {
     console.error("Erreur quotas images IA :", error);
