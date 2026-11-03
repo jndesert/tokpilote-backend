@@ -268,7 +268,16 @@ async function processImageGenerationJob(
     throw new Error("INVALID_VISUAL_PROMPT");
   }
 
-  // Empêcher toute exécution tant que le moteur n'est pas prêt.
+  // VidéaPilot — Sécurité : aucun traitement en mode préparatoire
+  if (
+    process.env.IMAGE_GENERATION_DRY_RUN === "true" ||
+    process.env.IMAGE_GENERATION_ENABLED !== "true"
+  ) {
+    throw new Error("IMAGE_PROCESSING_NOT_READY");
+  }
+
+  // VidéaPilot — Le traitement réel n'est pas encore disponible.
+  // Ne modifier aucun statut PostgreSQL à cette étape.
   throw new Error("IMAGE_PROCESSING_NOT_READY");
 }
 
