@@ -721,6 +721,8 @@ document.getElementById("prepare-video-montage")
         for (const scene of montage.timeline) {
           const segment = document.createElement("div");
 
+          segment.dataset.sceneId = scene.sceneId || "";
+
           const percentage =
             (scene.durationSeconds / totalSeconds) * 100;
 
