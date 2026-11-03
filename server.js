@@ -36,6 +36,44 @@ const app = express();
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
+
+
+/**
+ * VidéaPilot — Moteur de génération d'images IA
+ * Génère une seule image à partir du prompt d'une scène.
+ */
+async function generateSceneImageWithOpenAI(visualPrompt) {
+  if (
+    typeof visualPrompt !== "string" ||
+    !visualPrompt.trim() ||
+    visualPrompt.length > 3000
+  ) {
+    throw new Error("INVALID_VISUAL_PROMPT");
+  }
+
+  if (process.env.IMAGE_GENERATION_ENABLED !== "true") {
+    throw new Error("IMAGE_GENERATION_DISABLED");
+  }
+
+  const result = await openai.images.generate({
+    model: "gpt-image-1",
+    prompt: visualPrompt.trim(),
+    size: "1024x1024",
+    n: 1
+  });
+
+  const imageBase64 = result.data?.[0]?.b64_json;
+
+  if (!imageBase64) {
+    throw new Error("IMAGE_GENERATION_EMPTY_RESPONSE");
+  }
+
+  return {
+    imageBase64,
+    mimeType: "image/png"
+  };
+}
+
 const PORT = process.env.PORT || 3000;
 
 // Connexion à la base PostgreSQL de VidéaPilot
