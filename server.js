@@ -994,6 +994,54 @@ app.post("/api/audio/test", async (req, res) => {
   }
 });
 
+
+ // VidéaPilot — Préparation de la génération d'images IA
+app.post("/api/ai/generate-scene-image", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  // Vérifier l'origine
+  if (
+    req.get("Origin") !==
+    "https://videapilot-api.onrender.com"
+  ) {
+    return res.status(403).json({
+      success: false,
+      error: "ORIGIN_NOT_ALLOWED"
+    });
+  }
+
+  // Vérifier la connexion TikTok
+  if (!req.session?.tiktokUser?.openId) {
+    return res.status(401).json({
+      success: false,
+      error: "TIKTOK_LOGIN_REQUIRED"
+    });
+  }
+
+  // Vérifier la description visuelle
+  const { visualPrompt } = req.body || {};
+
+  if (
+    typeof visualPrompt !== "string" ||
+    !visualPrompt.trim() ||
+    visualPrompt.length > 3000
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: "INVALID_VISUAL_PROMPT"
+    });
+  }
+
+  // Mode test : aucun appel OpenAI et aucun quota réservé
+  return res.json({
+    success: true,
+    status: "image_generation_ready",
+    imageGenerated: false,
+    message: "Description visuelle validée."
+  });
+});
+
+
 app.post("/api/ai/prepare-scenes", async (req, res) => {
   res.set("Cache-Control", "no-store");
 
