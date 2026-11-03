@@ -22,6 +22,8 @@ const {
   previewTtsRequest
 } = require("./audio-tts");
 
+const { randomUUID } = require("node:crypto");
+
 const express = require("express");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
@@ -1618,6 +1620,7 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
    });
 
     return {
+      sceneId: randomUUID(),
       number: index + 1,
       title,
       content,
