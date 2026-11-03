@@ -456,6 +456,45 @@ async function reserveAudioGeneration(userId) {
   };
 }
 
+
+async function reserveImageGeneration(userId) {
+  const result = await pool.query(
+    `
+    INSERT INTO image_usage (
+      user_id,
+      window_start,
+      request_count
+    )
+    VALUES ($1, NOW(), 1)
+
+    ON CONFLICT (user_id)
+    DO UPDATE SET
+      window_start = CASE
+        WHEN image_usage.window_start <= NOW() - INTERVAL '1 hour'
+        THEN NOW()
+        ELSE image_usage.window_start
+      END,
+      request_count = CASE
+        WHEN image_usage.window_start <= NOW() - INTERVAL '1 hour'
+        THEN 1
+        ELSE image_usage.request_count + 1
+      END
+
+    WHERE
+      image_usage.window_start <= NOW() - INTERVAL '1 hour'
+      OR image_usage.request_count < 5
+
+    RETURNING request_count
+    `,
+    [userId]
+  );
+
+  return {
+    allowed: result.rows.length > 0,
+    count: result.rows[0]?.request_count ?? 5
+  };
+}
+
 async function getAudioQuotaStatus(userId) {
   const result = await pool.query(
     `
