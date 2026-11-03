@@ -513,6 +513,38 @@ async function reserveImageGeneration(userId) {
   };
 }
 
+ // VidéaPilot — Réservation du quota global des images IA
+async function reserveGlobalImageGeneration() {
+  const result = await pool.query(
+    `
+    INSERT INTO image_global_usage (
+      usage_date,
+      request_count
+    )
+    VALUES (
+      (NOW() AT TIME ZONE 'UTC')::date,
+      1
+    )
+
+    ON CONFLICT (usage_date)
+    DO UPDATE SET
+      request_count =
+        image_global_usage.request_count + 1
+
+    WHERE image_global_usage.request_count < 20
+
+    RETURNING request_count
+    `
+  );
+
+  return {
+    allowed: result.rows.length > 0,
+    count: result.rows[0]?.request_count ?? 20,
+    limit: 20
+  };
+}
+
+
 async function getAudioQuotaStatus(userId) {
   const result = await pool.query(
     `
