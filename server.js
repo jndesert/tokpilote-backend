@@ -99,6 +99,29 @@ async function initializeVideoProjects() {
   console.log("Table des projets vidéo prête");
 }
 
+// VidéaPilot — Initialisation des scènes persistantes.
+async function initializeVideoProjectScenes() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS video_project_scenes (
+      scene_id UUID PRIMARY KEY,
+      project_id BIGINT NOT NULL
+        REFERENCES video_projects(id) ON DELETE CASCADE,
+      scene_number INTEGER NOT NULL
+        CHECK (scene_number > 0),
+      title TEXT NOT NULL,
+      visual_prompt TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (project_id, scene_number),
+      UNIQUE (project_id, scene_id)
+    )
+  `);
+
+  console.log("Table des scènes vidéo prête");
+}
+
+// Initialisation du suivi des générations d'images IA
+async function initializeImageUsage() {
+
 
  // Initialisation du suivi des générations d'images IA
 async function initializeImageUsage() {
@@ -313,12 +336,15 @@ initializeImageGlobalUsage().catch((error) => {
   );
 });
 
-initializeVideoProjects().catch((error) => {
-  console.error(
-    "Erreur initialisation projets vidéo :",
-    error.message
-  );
-});
+// Initialiser les projets avant les scènes persistantes.
+initializeVideoProjects()
+  .then(() => initializeVideoProjectScenes())
+  .catch((error) => {
+    console.error(
+      "Erreur initialisation projets et scènes vidéo :",
+      error.message
+    );
+  });
 
 // Sessions sécurisées stockées dans PostgreSQL
 app.set("trust proxy", 1);
