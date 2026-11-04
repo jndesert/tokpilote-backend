@@ -869,7 +869,7 @@ app.post("/api/ai/generate-script", async (req, res) => {
       message: "Service IA temporairement indisponible."
     });
   }
- 
+  
   // Appel à OpenAI
   try {
     const response = await openai.responses.create({
@@ -959,54 +959,18 @@ app.post("/api/ai/complete-script", async (req, res) => {
     !script.trim() ||
     script.length > 15000
   ) {
-   // Vérifier l'identifiant du projet vidéo.
-  if (
-    projectId !== undefined &&
-    !/^[1-9]\d*$/.test(String(projectId))
-  ) {
     return res.status(400).json({
-      success: false,
-      error: "INVALID_PROJECT_ID",
-      message: "Identifiant du projet vidéo invalide."
+      message: "Scénario invalide (15000 caractères maximum)."
     });
   }
 
-  // Vérifier que le projet appartient à l'utilisateur connecté.
-if (projectId !== undefined) {
-  const userId = req.session.tiktokUser.openId;
-
-  let projectResult;
-
+  // Vérifier et réserver le quota IA.
   try {
-    projectResult = await pool.query(
-      `
-      SELECT id
-      FROM video_projects
-      WHERE id = $1 AND user_id = $2
-      `,
-      [projectId, userId]
-    );
-  } catch (error) {
-    console.error(
-      "Erreur vérification du projet vidéo :",
-      error.message
-    );
+    const quota = await reserveAiGeneration(userId);
 
-    return res.status(503).json({
-      success: false,
-      error: "PROJECT_LOOKUP_UNAVAILABLE"
-    });
-  }
-
-  if (projectResult.rows.length === 0) {
-    return res.status(404).json({
-      success: false,
-      error: "PROJECT_NOT_FOUND",
-      message: "Projet vidéo introuvable."
-    });
-  }
-}
-
+    if (!quota.allowed) {
+      return res.status(429).json({
+        message: "Limite atteinte : 5 générations IA par heure."
       });
     }
   } catch (error) {
