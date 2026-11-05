@@ -1,0 +1,131 @@
+﻿"use strict";
+
+const RENDER_LOCK_KEY = 20261104;
+
+function createPostgresRenderLock(pool) {
+  if (
+    !pool ||
+    typeof pool.connect !== "function"
+  ) {
+    throw new Error("INVALID_RENDER_LOCK_POOL");
+  }
+
+  async function run(task) {
+    if (typeof task !== "function") {
+      throw new Error("INVALID_RENDER_TASK");
+    }
+
+    const client = await pool.connect();
+
+    let acquired = false;
+    let acquisitionAttempted = false;
+    let connectionLost = false;
+    let unsafeSession = false;
+    let taskError = null;
+    let cleanupError = null;
+    let taskResult;
+
+    const onConnectionError = () => {
+      connectionLost = true;
+      unsafeSession = true;
+    };
+
+    if (typeof client.on === "function") {
+      client.on("error", onConnectionError);
+    }
+
+    try {
+      acquisitionAttempted = true;
+
+      const result = await client.query(
+        "SELECT pg_try_advisory_lock($1) AS acquired",
+        [RENDER_LOCK_KEY]
+      );
+
+      if (result.rows[0]?.acquired !== true) {
+        acquisitionAttempted = false;
+        throw new Error("VIDEO_RENDER_BUSY");
+      }
+
+      acquired = true;
+
+      if (connectionLost) {
+        throw new Error("RENDER_LOCK_CONNECTION_LOST");
+      }
+
+      taskResult = await task();
+
+      if (connectionLost) {
+        throw new Error("RENDER_LOCK_CONNECTION_LOST");
+      }
+
+    } catch (error) {
+      taskError = error;
+
+      if (acquisitionAttempted && !acquired) {
+        unsafeSession = true;
+      }
+
+    } finally {
+      if (acquired && !connectionLost) {
+        try {
+          const unlockResult = await client.query(
+            "SELECT pg_advisory_unlock($1) AS released",
+            [RENDER_LOCK_KEY]
+          );
+
+          if (unlockResult.rows[0]?.released !== true) {
+            throw new Error("RENDER_LOCK_RELEASE_FAILED");
+          }
+
+        } catch (error) {
+          cleanupError = error;
+          unsafeSession = true;
+        }
+      }
+
+      if (typeof client.removeListener === "function") {
+        client.removeListener(
+          "error",
+          onConnectionError
+        );
+      }
+
+      try {
+        client.release(
+          unsafeSession
+            ? new Error("RENDER_LOCK_SESSION_UNSAFE")
+            : undefined
+        );
+      } catch (error) {
+        if (!cleanupError) {
+          cleanupError = error;
+        }
+      }
+    }
+
+    if (taskError && cleanupError) {
+      throw new AggregateError(
+        [taskError, cleanupError],
+        "RENDER_AND_LOCK_CLEANUP_FAILED"
+      );
+    }
+
+    if (taskError) {
+      throw taskError;
+    }
+
+    if (cleanupError) {
+      throw cleanupError;
+    }
+
+    return taskResult;
+  }
+
+  return Object.freeze({ run });
+}
+
+module.exports = {
+  RENDER_LOCK_KEY,
+  createPostgresRenderLock
+};

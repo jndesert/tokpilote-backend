@@ -23,6 +23,9 @@ const {
 } = require("./audio-tts");
 
 const { randomUUID } = require("node:crypto");
+const { synchronizeProjectScenes } = require("./video-scene-sync");
+const { preserveSceneIdentities } = require("./video-scene-identity");
+const { registerVideoRenderRoute } = require("./video-render-route");
 
 const express = require("express");
 const session = require("express-session");
@@ -374,6 +377,7 @@ const WEBSITE_URL = "https://videapilot.fr/";
 
 app.disable("x-powered-by");
 app.use(express.json());
+registerVideoRenderRoute(app, pool);
 
 app.get("/", (req, res) => {
   res.json({
@@ -2238,37 +2242,54 @@ const audioTestPreview = {
     client = await pool.connect();
     await client.query("BEGIN");
 
-      // Verrouiller le projet pendant l'enregistrement des scènes.
-      await client.query(
-        "SELECT id FROM video_projects WHERE id = $1 FOR UPDATE",
-        [projectId]
+      // Verifier le proprietaire dans la transaction.
+      const userId = req.session.tiktokUser.openId;
+
+      const lockedProject = await client.query(
+        `
+        SELECT id
+        FROM video_projects
+        WHERE id = $1 AND user_id = $2
+        FOR UPDATE
+        `,
+        [projectId, userId]
       );
 
-      // Remplacer les anciennes scènes du projet.
-      await client.query(
-        "DELETE FROM video_project_scenes WHERE project_id = $1",
-        [projectId]
-      );
-
-      // Enregistrer les nouvelles scènes dans leur ordre.
-      for (const scene of scenes) {
-        await client.query(
-          `
-          INSERT INTO video_project_scenes
-            (scene_id, project_id, scene_number, title, visual_prompt)
-          VALUES ($1, $2, $3, $4, $5)
-          `,
-          [
-            scene.sceneId,
-            projectId,
-            scene.number,
-            scene.title,
-            scene.visualPrompt || ""
-          ]
-        );
+      if (lockedProject.rows.length === 0) {
+        throw new Error("PROJECT_NOT_FOUND");
       }
 
+      // Charger les scenes existantes sous le verrou du projet.
+      const existingScenesResult = await client.query(
+        `
+        SELECT scene_id, scene_number, title, visual_prompt
+        FROM video_project_scenes
+        WHERE project_id = $1
+        ORDER BY scene_number ASC
+        `,
+        [projectId]
+      );
+
+      // Reutiliser les UUID lorsque le contenu est identique.
+      const preservedScenes = preserveSceneIdentities(
+        scenes,
+        existingScenesResult.rows
+      );
+
+      // Synchroniser avec les identifiants prepares.
+      // Ne pas modifier les scenes de la reponse avant COMMIT.
+      await synchronizeProjectScenes(
+        client,
+        projectId,
+        preservedScenes
+      );
+
       await client.query("COMMIT");
+
+      // Publier les identifiants uniquement apres validation.
+      for (let index = 0; index < scenes.length; index++) {
+        scenes[index].sceneId = preservedScenes[index].sceneId;
+      }
     } catch (error) {
 
     if (client) {

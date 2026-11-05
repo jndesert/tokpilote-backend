@@ -1,0 +1,29 @@
+﻿# VidéaPilot — Dépendances Node.js
+node_modules/
+
+# Secrets et variables d'environnement
+.env
+.env.*
+!.env.example
+
+# Journaux et fichiers temporaires
+*.log
+tmp/
+temp/
+.cache/
+
+# Médias générés
+uploads/
+generated/
+sorties/
+montages-automatiques/
+*.mp4
+*.mov
+*.webm
+
+# Sauvegardes locales
+*.pre-ffmpeg-backup.js
+
+# Fichiers système
+.DS_Store
+Thumbs.db
