@@ -40,6 +40,10 @@ const {
   createRenderConcurrencyGuard
 } = require("./video-render-concurrency");
 
+const {
+  withSecureAudioSnapshot
+} = require("./video-audio-snapshot-v2");
+
 const renderGuard = createRenderConcurrencyGuard();
 async function renderProjectVideo(options = {}) {
   const {
@@ -47,7 +51,9 @@ async function renderProjectVideo(options = {}) {
     projectId,
     userId,
     imageDirectory,
-    outputDirectory
+    outputDirectory,
+    audioDirectory = null,
+    audioFileName = null
   } = options;
 
   if (!pool || typeof pool.query !== "function") {
@@ -63,6 +69,9 @@ async function renderProjectVideo(options = {}) {
     throw new Error("INVALID_OUTPUT_DIRECTORY");
   }
 
+  // Le verrou protege les requetes SQL et le rendu MP4.
+  const { prepared, result, outputName } = await renderGuard.run(
+    async () => {
   // Verifier explicitement le proprietaire du projet.
   const projectResult = await pool.query(
     `
@@ -84,9 +93,6 @@ async function renderProjectVideo(options = {}) {
     [projectId, userId]
   );
 
-  // Le verrou protege la preparation et le rendu MP4.
-  const { prepared, result, outputName } = await renderGuard.run(
-    async () => {
       // Verifier les chemins, tailles, dimensions et decodage.
       const prepared = await prepareDatabaseRenderScenesSecure(
         sceneResult.rows,
@@ -108,13 +114,30 @@ async function renderProjectVideo(options = {}) {
       const result = await withSecureImageSnapshots(
         prepared.scenes,
         async snapshotScenes => {
-          return renderVideo({
+          const executeRender = audioPath => renderVideo({
             scenes: snapshotScenes,
             outputPath,
             width: 1080,
             height: 1920,
-            fps: 30
+            fps: 30,
+            audioPath
           });
+
+          if (audioDirectory === null && audioFileName === null) {
+            return executeRender(null);
+          }
+
+          if (
+            typeof audioDirectory !== "string" ||
+            typeof audioFileName !== "string"
+          ) {
+            throw new Error("INVALID_AUDIO_OPTIONS");
+          }
+
+          return withSecureAudioSnapshot(
+            { audioDirectory, audioFileName },
+            executeRender
+          );
         }
       );
 

@@ -1,5 +1,9 @@
 "use strict";
 
+const path = require("node:path");
+const { renderProjectVideo } = require("./video-render-project-service");
+const { mapRenderErrorToHttp } = require("./video-render-http-errors");
+
 function registerVideoRenderRoute(app, pool) {
   if (!app || !pool) {
     throw new Error("RENDER_ROUTE_DEPENDENCIES_MISSING");
@@ -16,6 +20,20 @@ function registerVideoRenderRoute(app, pool) {
       });
     }
 
+    // Deuxieme verrou : tests locaux uniquement.
+    if (process.env.VIDEO_RENDER_LOCAL_TEST !== "true") {
+      return res.status(503).json({
+        success: false,
+        error: "VIDEO_RENDER_LOCAL_TEST_DISABLED"
+      });
+    }
+
+    if (process.env.NODE_ENV === "production") {
+      return res.status(503).json({
+        success: false,
+        error: "VIDEO_RENDER_PRODUCTION_NOT_ENABLED"
+      });
+    }
     // Verifier l'origine.
     if (
       req.get("Origin") !==
@@ -82,15 +100,35 @@ function registerVideoRenderRoute(app, pool) {
         });
       }
 
-      // Aucun rendu tant que les images du projet
-      // ne sont pas associees de facon securisee.
-      return res.status(503).json({
-        success: false,
-        status: "render_not_ready",
-        error: "PROJECT_IMAGES_NOT_READY",
-        message:
-          "Projet verifie. Association des images en preparation."
-      });
+      const imageDirectory = process.env.VIDEO_IMAGE_DIRECTORY;
+      const outputDirectory = process.env.VIDEO_OUTPUT_DIRECTORY;
+
+      if (
+        typeof imageDirectory !== "string" ||
+        typeof outputDirectory !== "string" ||
+        !path.isAbsolute(imageDirectory) ||
+        !path.isAbsolute(outputDirectory)
+      ) {
+        return res.status(503).json({
+          success: false,
+          error: "VIDEO_RENDER_STORAGE_NOT_CONFIGURED"
+        });
+      }
+
+      try {
+        const result = await renderProjectVideo({
+          pool,
+          projectId,
+          userId,
+          imageDirectory,
+          outputDirectory
+        });
+
+        return res.status(200).json(result);
+      } catch (renderError) {
+        const mapped = mapRenderErrorToHttp(renderError);
+        return res.status(mapped.status).json(mapped.body);
+      }
 
     } catch (error) {
       console.error(

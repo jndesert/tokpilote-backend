@@ -1,4 +1,4 @@
-﻿"use strict";
+"use strict";
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -59,7 +59,8 @@ async function renderVideo(options = {}) {
     outputPath,
     width = VIDEO_RENDERER_CONFIG.defaultWidth,
     height = VIDEO_RENDERER_CONFIG.defaultHeight,
-    fps = VIDEO_RENDERER_CONFIG.defaultFps
+    fps = VIDEO_RENDERER_CONFIG.defaultFps,
+    audioPath = null
   } = options;
 
   if (!Array.isArray(scenes) || scenes.length === 0) {
@@ -123,6 +124,19 @@ async function renderVideo(options = {}) {
     );
   }
 
+  if (audioPath !== null) {
+    if (
+      typeof audioPath !== "string" ||
+      !path.isAbsolute(audioPath) ||
+      !fs.existsSync(audioPath) ||
+      !fs.statSync(audioPath).isFile()
+    ) {
+      throw new Error("Fichier audio invalide.");
+    }
+
+    args.push("-i", audioPath);
+  }
+
   const filters = scenes.map((scene, index) =>
     `[${index}:v]fps=${fps},scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p[v${index}]`
   );
@@ -141,6 +155,18 @@ async function renderVideo(options = {}) {
     "-c:v", VIDEO_RENDERER_CONFIG.videoCodec,
     "-preset", "ultrafast",
     "-pix_fmt", VIDEO_RENDERER_CONFIG.pixelFormat,
+    ...(audioPath !== null ? [
+      "-map", `${scenes.length}:a:0`,
+      "-c:a", "aac",
+      "-b:a", "128k",
+      "-af", "apad",
+      "-t", String(
+        scenes.reduce(
+          (total, scene) => total + scene.durationSeconds,
+          0
+        )
+      )
+    ] : []),
     "-movflags", "+faststart",
     "-y",
     temporaryPath

@@ -40,7 +40,17 @@ function prepareDatabaseRenderScenes(rows, options = {}) {
     }
 
     const imagePath = path.join(imageRoot, storageKey);
-    const realImagePath = fs.realpathSync(imagePath);
+    let realImagePath;
+
+    try {
+      realImagePath = fs.realpathSync(imagePath);
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        throw new Error("SCENE_IMAGE_FILE_NOT_FOUND");
+      }
+
+      throw error;
+    }
 
     if (path.dirname(realImagePath) !== imageRoot) {
       throw new Error("IMAGE_OUTSIDE_ALLOWED_DIRECTORY");

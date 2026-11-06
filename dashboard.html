@@ -288,12 +288,67 @@
   const videoFormSection =
     document.getElementById("video-form-section");
 
+
+  /* VIDEAPILOT_PROJECT_LIFECYCLE_526 */
+
+  function resetVideaPilotRenderState() {
+    const requestGuard =
+      window.videapilotRenderRequestGuard;
+
+    if (requestGuard) {
+      requestGuard.invalidate();
+    }
+
+    const context =
+      window.videapilotRenderProjectContext;
+
+    if (context) {
+      context.clear();
+    }
+
+    const form = document.getElementById("video-form");
+
+    if (form) {
+      delete form.dataset.savedScript;
+    }
+
+    const preview =
+      document.getElementById("video-montage-preview");
+
+    const summary =
+      document.getElementById("video-montage-summary");
+
+    const timeline =
+      document.getElementById("video-montage-timeline");
+
+    const result =
+      document.getElementById("videapilot-render-result");
+
+    if (preview) {
+      preview.style.display = "none";
+    }
+
+    if (summary) {
+      summary.textContent = "";
+    }
+
+    if (timeline) {
+      timeline.replaceChildren();
+    }
+
+    if (result) {
+      result.textContent = "";
+      result.hidden = true;
+    }
+  }
+
   createVideoButton.addEventListener("click", () => {
     // Revenir en mode création
     const form = document.getElementById("video-form");
 
     form.reset();
     delete form.dataset.editId;
+    resetVideaPilotRenderState();
 
     // Afficher le formulaire vierge
     videoFormSection.style.display = "block";
@@ -433,8 +488,20 @@ async function loadVideoProjects() {
         document.getElementById("video-topic").value = project.topic;
         document.getElementById("video-script").value = project.script || "";
 
+        resetVideaPilotRenderState();
+
         form.dataset.editId = project.id;
         form.dataset.savedScript = (project.script || "").trim();
+
+        const renderContext =
+          window.videapilotRenderProjectContext;
+
+        if (renderContext) {
+          renderContext.selectProject(
+            project.id,
+            project.script || ""
+          );
+        }
         
         section.style.display = "block";
 
@@ -486,6 +553,8 @@ deleteButton.addEventListener("click", async () => {
     if (form.dataset.editId === String(project.id)) {
       form.reset();
       delete form.dataset.editId;
+      /* VIDEAPILOT_PROJECT_DELETE_528 */
+      resetVideaPilotRenderState();
     }
 
     await loadVideoProjects();
@@ -608,12 +677,690 @@ loadVideoProjects();
 
   <div id="video-montage-summary"></div>
 
+  <!-- Vid?aPilot : panneau de rendu vid?o -->
+  <section
+    id="videapilot-render-panel"
+    aria-labelledby="videapilot-render-heading"
+    style="
+      margin-top:20px;
+      padding:16px;
+      border:1px solid #cbd5e1;
+      border-radius:10px;
+      background:#f8fafc;
+    "
+  >
+    <h4 id="videapilot-render-heading">
+      ?? G?n?ration de la vid?o MP4
+    </h4>
+
+    <p id="videapilot-render-notice">
+      Le moteur vid?o a ?t? valid? en test local.
+      La g?n?ration depuis le tableau de bord
+      n'est pas encore activ?e.
+    </p>
+
+    <button
+      type="button"
+      id="videapilot-render-button"
+      disabled
+      aria-describedby="videapilot-render-notice"
+      style="
+        padding:12px 18px;
+        border:0;
+        border-radius:8px;
+        background:#64748b;
+        color:white;
+        cursor:not-allowed;
+      "
+    >
+      ?? G?n?rer ma vid?o
+    </button>
+
+    <p
+      id="videapilot-render-status"
+      role="status"
+      aria-live="polite"
+      style="margin-top:12px;"
+    >
+      G?n?ration indisponible pour le moment.
+    </p>
+
+    <div
+      id="videapilot-render-result"
+      aria-label="R?sultat de la g?n?ration vid?o"
+      hidden
+    ></div>
+  </section>
+
+
   <div
     id="video-montage-timeline"
     style="margin-top:15px;"
   ></div>
 </div>
 </div>
+
+<script>
+"use strict";
+
+(function (root, factory) {
+  const api = factory();
+
+  if (typeof module === "object" && module.exports) {
+    module.exports = api;
+  }
+
+  if (root && typeof root === "object") {
+    root.VideaPilotRenderController = api;
+  }
+})(
+  typeof globalThis !== "undefined" ? globalThis : null,
+  function () {
+    "use strict";
+
+    function validateProjectId(value) {
+      if (
+        typeof value !== "string" &&
+        typeof value !== "number"
+      ) {
+        return false;
+      }
+
+      const text = String(value);
+
+      return (
+        /^[1-9]\d*$/.test(text) &&
+        Number.isSafeInteger(Number(text))
+      );
+    }
+
+    function createRenderController(options = {}) {
+      const button = options.button;
+      const status = options.status;
+      const result = options.result;
+
+      if (!button || !status || !result) {
+        throw new Error("RENDER_UI_ELEMENTS_MISSING");
+      }
+
+      let enabled = false;
+      let busy = false;
+
+      function refresh() {
+        button.disabled = !enabled || busy;
+      }
+
+      function setStatus(message) {
+        status.textContent = String(message);
+      }
+
+      async function requestRender(projectId) {
+        if (!enabled) {
+          throw new Error("RENDER_NOT_ENABLED");
+        }
+
+        if (busy) {
+          throw new Error("RENDER_ALREADY_RUNNING");
+        }
+
+        if (!validateProjectId(projectId)) {
+          throw new Error("INVALID_PROJECT_ID");
+        }
+
+        if (typeof options.fetchRender !== "function") {
+          throw new Error("RENDER_TRANSPORT_MISSING");
+        }
+
+        busy = true;
+        refresh();
+        setStatus("G?n?ration en cours...");
+
+        try {
+          const response = await options.fetchRender({
+            projectId: Number(projectId)
+          });
+
+          if (!response || response.success !== true) {
+            throw new Error("RENDER_REQUEST_FAILED");
+          }
+
+          result.textContent =
+            "Vid?o g?n?r?e : " +
+            String(response.fileName || "");
+
+          result.hidden = false;
+          setStatus("G?n?ration termin?e.");
+
+          return response;
+
+        } catch (error) {
+          setStatus("La g?n?ration a ?chou?.");
+          throw error;
+
+        } finally {
+          busy = false;
+          refresh();
+        }
+      }
+
+      function enableForLocalTest() {
+        if (options.localTestAuthorized !== true) {
+          throw new Error("LOCAL_TEST_NOT_AUTHORIZED");
+        }
+
+        enabled = true;
+        refresh();
+      }
+
+      refresh();
+      setStatus("G?n?ration indisponible pour le moment.");
+      result.hidden = true;
+
+      return {
+        requestRender,
+        enableForLocalTest,
+        isEnabled: () => enabled,
+        isBusy: () => busy
+      };
+    }
+
+    return {
+      validateProjectId,
+      createRenderController
+    };
+  }
+);
+
+
+
+/* VIDEAPILOT_RENDER_TRANSPORT_518 */
+"use strict";
+
+(function (root, factory) {
+  const api = factory();
+
+  if (typeof module === "object" && module.exports) {
+    module.exports = api;
+  }
+
+  if (root && typeof root === "object") {
+    root.VideaPilotRenderTransport = api;
+  }
+})(
+  typeof globalThis !== "undefined" ? globalThis : null,
+  function () {
+    "use strict";
+
+    function validateProjectId(value) {
+      const text = String(value);
+
+      return (
+        /^[1-9]\d*$/.test(text) &&
+        Number.isSafeInteger(Number(text))
+      );
+    }
+
+    function createTransport(options = {}) {
+      const fetchImpl = options.fetchImpl;
+
+      if (typeof fetchImpl !== "function") {
+        throw new Error("FETCH_IMPLEMENTATION_MISSING");
+      }
+
+      return async function fetchRender(payload) {
+        if (
+          !payload ||
+          !validateProjectId(payload.projectId)
+        ) {
+          throw new Error("INVALID_PROJECT_ID");
+        }
+
+        let response;
+
+        try {
+          response = await fetchImpl(
+            "/api/videos/render",
+            {
+              method: "POST",
+              credentials: "same-origin",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                projectId: Number(payload.projectId)
+              }),
+              cache: "no-store"
+            }
+          );
+        } catch (error) {
+          throw new Error("RENDER_NETWORK_ERROR");
+        }
+
+        if (
+          !response ||
+          typeof response.ok !== "boolean" ||
+          typeof response.json !== "function"
+        ) {
+          throw new Error("RENDER_INVALID_RESPONSE");
+        }
+
+        let data;
+
+        try {
+          data = await response.json();
+        } catch (error) {
+          throw new Error("RENDER_INVALID_JSON");
+        }
+
+        if (!response.ok) {
+          const status = Number(response.status) || 0;
+
+          throw new Error(
+            "RENDER_HTTP_ERROR_" + status
+          );
+        }
+
+        if (!data || data.success !== true) {
+          throw new Error("RENDER_API_ERROR");
+        }
+
+        return data;
+      };
+    }
+
+    return {
+      validateProjectId,
+      createTransport
+    };
+  }
+);
+
+
+
+/* VIDEAPILOT_RENDER_CONTEXT_524 */
+
+(function (root, factory) {
+  "use strict";
+
+  const api = factory();
+
+  if (typeof module === "object" && module.exports) {
+    module.exports = api;
+  }
+
+  if (root && typeof root === "object") {
+    root.VideaPilotRenderProjectContext = api;
+  }
+
+})(
+  typeof globalThis !== "undefined" ? globalThis : null,
+  function () {
+    "use strict";
+
+    function normalizeProjectId(value) {
+      if (
+        typeof value !== "string" &&
+        typeof value !== "number"
+      ) {
+        return null;
+      }
+
+      const text = String(value);
+
+      if (!/^[1-9]\d*$/.test(text)) {
+        return null;
+      }
+
+      const number = Number(text);
+
+      if (!Number.isSafeInteger(number)) {
+        return null;
+      }
+
+      return String(number);
+    }
+
+    function normalizeScript(value) {
+      return typeof value === "string"
+        ? value.trim()
+        : "";
+    }
+
+    function createProjectContext() {
+      let projectId = null;
+      let savedScript = null;
+      let prepared = null;
+
+      function invalidateMontage() {
+        prepared = null;
+      }
+
+      function clear() {
+        projectId = null;
+        savedScript = null;
+        invalidateMontage();
+      }
+
+      function selectProject(id, script) {
+        const normalizedId = normalizeProjectId(id);
+
+        if (!normalizedId) {
+          clear();
+          throw new Error("INVALID_PROJECT_ID");
+        }
+
+        projectId = normalizedId;
+        savedScript = normalizeScript(script);
+        invalidateMontage();
+      }
+
+      function isScriptSaved(script) {
+        return (
+          projectId !== null &&
+          savedScript !== null &&
+          normalizeScript(script) === savedScript
+        );
+      }
+
+      function markMontagePrepared(id, script) {
+        const normalizedId = normalizeProjectId(id);
+
+        if (
+          !normalizedId ||
+          normalizedId !== projectId
+        ) {
+          throw new Error("PROJECT_CONTEXT_MISMATCH");
+        }
+
+        if (!isScriptSaved(script)) {
+          throw new Error("SCRIPT_CONTEXT_MISMATCH");
+        }
+
+        prepared = {
+          projectId,
+          script: savedScript
+        };
+      }
+
+      function canRender(id, script) {
+        const normalizedId = normalizeProjectId(id);
+
+        return Boolean(
+          prepared &&
+          normalizedId &&
+          normalizedId === projectId &&
+          prepared.projectId === projectId &&
+          isScriptSaved(script) &&
+          prepared.script === savedScript
+        );
+      }
+
+      return {
+        clear,
+        selectProject,
+        invalidateMontage,
+        isScriptSaved,
+        markMontagePrepared,
+        canRender,
+
+        getProjectId: function () {
+          return projectId;
+        },
+
+        hasPreparedMontage: function () {
+          return prepared !== null;
+        }
+      };
+    }
+
+    return {
+      normalizeProjectId,
+      normalizeScript,
+      createProjectContext
+    };
+  }
+);
+
+
+(function () {
+  "use strict";
+
+  if (
+    !window.VideaPilotRenderProjectContext ||
+    typeof window.VideaPilotRenderProjectContext
+      .createProjectContext !== "function"
+  ) {
+    console.error(
+      "VideaPilot : contexte de projet indisponible"
+    );
+    return;
+  }
+
+  window.videapilotRenderProjectContext =
+    window.VideaPilotRenderProjectContext
+      .createProjectContext();
+
+  console.log(
+    "VideaPilot : contexte de projet initialise (inactif)"
+  );
+})();
+
+
+/* VIDEAPILOT_REQUEST_GUARD_531 */
+
+
+(function (root, factory) {
+  "use strict";
+
+  const api = factory();
+
+  if (typeof module === "object" && module.exports) {
+    module.exports = api;
+  }
+
+  if (root && typeof root === "object") {
+    root.VideaPilotRenderRequestGuard = api;
+  }
+
+})(
+  typeof globalThis !== "undefined" ? globalThis : null,
+  function () {
+    "use strict";
+
+    function normalizeProjectId(value) {
+      if (
+        typeof value !== "string" &&
+        typeof value !== "number"
+      ) {
+        return null;
+      }
+
+      const text = String(value);
+
+      if (!/^[1-9]\d*$/.test(text)) {
+        return null;
+      }
+
+      const number = Number(text);
+
+      return Number.isSafeInteger(number)
+        ? String(number)
+        : null;
+    }
+
+    function normalizeScript(value) {
+      return typeof value === "string"
+        ? value.trim()
+        : "";
+    }
+
+    function createRequestGuard() {
+      let generation = 0;
+      let active = null;
+
+      function invalidate() {
+        generation++;
+        active = null;
+      }
+
+      function begin(projectId, script) {
+        const id = normalizeProjectId(projectId);
+
+        if (!id) {
+          invalidate();
+          throw new Error("INVALID_PROJECT_ID");
+        }
+
+        generation++;
+
+        active = {
+          generation,
+          projectId: id,
+          script: normalizeScript(script)
+        };
+
+        return Object.freeze({
+          generation,
+          projectId: id,
+          script: active.script
+        });
+      }
+
+      function isCurrent(token, projectId, script) {
+        if (!token || !active) {
+          return false;
+        }
+
+        const id = normalizeProjectId(projectId);
+
+        return Boolean(
+          id &&
+          token.generation === active.generation &&
+          token.projectId === active.projectId &&
+          token.script === active.script &&
+          id === active.projectId &&
+          normalizeScript(script) === active.script
+        );
+      }
+
+      function finish(token) {
+        if (
+          token &&
+          active &&
+          token.generation === active.generation &&
+          token.projectId === active.projectId &&
+          token.script === active.script
+        ) {
+          invalidate();
+          return true;
+        }
+
+        return false;
+      }
+
+      function hasActiveRequest() {
+        return active !== null;
+      }
+
+      return {
+        begin,
+        invalidate,
+        isCurrent,
+        finish,
+        hasActiveRequest
+      };
+    }
+
+    return {
+      createRequestGuard,
+      normalizeProjectId,
+      normalizeScript
+    };
+  }
+);
+
+
+(function () {
+  "use strict";
+
+  if (
+    !window.VideaPilotRenderRequestGuard ||
+    typeof window.VideaPilotRenderRequestGuard.createRequestGuard
+      !== "function"
+  ) {
+    throw new Error("REQUEST_GUARD_MODULE_MISSING");
+  }
+
+  window.videapilotRenderRequestGuard =
+    window.VideaPilotRenderRequestGuard.createRequestGuard();
+
+  console.log(
+    "VideaPilot : protection asynchrone initialisee"
+  );
+})();
+
+/* VIDEAPILOT_RENDER_CONTROLLER_514 */
+
+(function () {
+  "use strict";
+
+  const button = document.getElementById(
+    "videapilot-render-button"
+  );
+
+  const status = document.getElementById(
+    "videapilot-render-status"
+  );
+
+  const result = document.getElementById(
+    "videapilot-render-result"
+  );
+
+  const form = document.getElementById(
+    "video-form"
+  );
+
+  if (!button || !status || !result || !form) {
+    return;
+  }
+
+  if (
+    !window.VideaPilotRenderController ||
+    typeof window.VideaPilotRenderController
+      .createRenderController !== "function" ||
+    !window.VideaPilotRenderTransport ||
+    typeof window.VideaPilotRenderTransport
+      .createTransport !== "function"
+  ) {
+    button.disabled = true;
+    status.textContent =
+      "Controleur de generation indisponible.";
+    return;
+  }
+
+  const controller =
+    window.VideaPilotRenderController.createRenderController({
+      button,
+      status,
+      result,
+      localTestAuthorized: false,
+
+      fetchRender:
+        window.VideaPilotRenderTransport.createTransport({
+          fetchImpl: window.fetch.bind(window)
+        })
+    });
+
+  window.videapilotRenderController = controller;
+
+  button.disabled = true;
+
+  console.log(
+    "VideaPilot : controleur initialise (inactif)"
+  );
+})();
+
+</script>
 
 <script>
 document.getElementById("test-scenes").addEventListener("click", async () => {
@@ -649,6 +1396,41 @@ document.getElementById("test-scenes").addEventListener("click", async () => {
 
   result.textContent = "Préparation des scènes en cours...";
 
+  /* VIDEAPILOT_TEST_SCENES_GUARD_532 */
+
+  const requestGuard =
+    window.videapilotRenderRequestGuard;
+
+  if (!requestGuard) {
+    result.textContent =
+      "Protection des requ?tes indisponible.";
+    return;
+  }
+
+  const requestToken =
+    requestGuard.begin(projectId, script);
+
+  const isStillCurrent = () => {
+    const currentForm =
+      document.getElementById("video-form");
+
+    const currentScript =
+      document.getElementById("video-script")
+        ?.value.trim() || "";
+
+    return Boolean(
+      currentForm &&
+      String(currentForm.dataset.editId || "") ===
+        String(projectId) &&
+      currentForm.dataset.savedScript === script &&
+      requestGuard.isCurrent(
+        requestToken,
+        projectId,
+        currentScript
+      )
+    );
+  };
+
   try {
     const response = await fetch("/api/ai/prepare-scenes", {
       method: "POST",
@@ -664,6 +1446,10 @@ document.getElementById("test-scenes").addEventListener("click", async () => {
 
     const data = await response.json();
 
+    if (!isStillCurrent()) {
+      return;
+    }
+
     result.textContent = JSON.stringify({
       status: response.status,
       ...data,
@@ -671,7 +1457,13 @@ document.getElementById("test-scenes").addEventListener("click", async () => {
     }, null, 2);
 
   } catch (error) {
+    if (!isStillCurrent()) {
+      return;
+    }
+
     result.textContent = "Erreur : " + error.message;
+  } finally {
+    requestGuard.finish(requestToken);
   }
 });
 </script>
@@ -712,6 +1504,41 @@ document.getElementById("prepare-video-montage")
 
     result.textContent = "Préparation du plan de montage...";
 
+    /* VIDEAPILOT_MONTAGE_GUARD_535 */
+
+    const requestGuard =
+      window.videapilotRenderRequestGuard;
+
+    if (!requestGuard) {
+      result.textContent =
+        "Protection des requetes indisponible.";
+      return;
+    }
+
+    const requestToken =
+      requestGuard.begin(projectId, script);
+
+    const isStillCurrent = () => {
+      const currentForm =
+        document.getElementById("video-form");
+
+      const currentScript =
+        document.getElementById("video-script")
+          ?.value.trim() || "";
+
+      return Boolean(
+        currentForm &&
+        String(currentForm.dataset.editId || "") ===
+          String(projectId) &&
+        currentForm.dataset.savedScript === script &&
+        requestGuard.isCurrent(
+          requestToken,
+          projectId,
+          currentScript
+        )
+      );
+    };
+
     try {
       const response = await fetch("/api/ai/prepare-scenes", {
         method: "POST",
@@ -726,6 +1553,10 @@ document.getElementById("prepare-video-montage")
       });
 
       const data = await response.json();
+
+      if (!isStillCurrent()) {
+        return;
+      }
 
       if (!response.ok || !data.videoMontagePlan?.success) {
         throw new Error(
@@ -2141,7 +2972,13 @@ document.getElementById("prepare-video-montage")
       }
 
     } catch (error) {
+      if (!isStillCurrent()) {
+        return;
+      }
+
       result.textContent = "Erreur : " + error.message;
+    } finally {
+      requestGuard.finish(requestToken);
     }
   });
 </script>
