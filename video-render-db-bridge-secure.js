@@ -12,6 +12,10 @@ const {
   validateImageDecoding
 } = require("./video-image-decoder");
 
+const {
+  validateImageSignature
+} = require("./video-image-signature");
+
 async function prepareDatabaseRenderScenesSecure(
   rows,
   options = {}
@@ -26,6 +30,12 @@ async function prepareDatabaseRenderScenesSecure(
   for (let i = 0; i < prepared.scenes.length; i++) {
     const scene = prepared.scenes[i];
     const row = rows[i];
+
+    // Refuser les fichiers dont la signature est invalide.
+    validateImageSignature(
+      scene.image,
+      row.mime_type
+    );
 
     // Refuser les dimensions excessives.
     await validateImageDimensions(scene.image, {
