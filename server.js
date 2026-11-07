@@ -2724,6 +2724,25 @@ app.get("/auth/tiktok/callback", async (req, res) => {
   }
 });
 
+
+// VIDEAPILOT_GLOBAL_ERROR_HANDLER
+// Gestion centralisee des erreurs Express.
+app.use((err, req, res, next) => {
+  console.error(
+    "Erreur Express non traitee :",
+    err
+  );
+
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  return res.status(500).json({
+    success: false,
+    error: "INTERNAL_SERVER_ERROR"
+  });
+});
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(
     `VidéaPilot Backend démarré sur le port ${PORT}`
