@@ -2569,7 +2569,7 @@ document.getElementById("prepare-video-montage")
 
         // VIDEAPILOT_PLAYBACK_SCENE_RESTORE_F8_118
         // Restore the active scene without starting playback.
-        if (playbackElapsedBeforePause > 0 && montage.timeline.length > 0) {
+        if (playbackElapsedBeforePause >= 0 && montage.timeline.length > 0) {
           const restoredSeconds = playbackElapsedBeforePause;
 
           const restoredScene = montage.timeline.find(scene =>
@@ -3139,7 +3139,7 @@ document.getElementById("prepare-video-montage")
 
         // VIDEAPILOT_PLAYBACK_CARD_RESTORE_F8_134
         // Highlight the saved scene after all cards are created.
-        if (playbackElapsedBeforePause > 0 && montage.timeline.length > 0) {
+        if (playbackElapsedBeforePause >= 0 && montage.timeline.length > 0) {
           const restoredSceneForCard = montage.timeline.find(scene =>
             playbackElapsedBeforePause >= scene.startSeconds &&
             playbackElapsedBeforePause < scene.endSeconds
