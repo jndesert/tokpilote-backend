@@ -2643,6 +2643,14 @@ app.get("/auth/tiktok/callback", async (req, res) => {
       );
     }
 
+    // Renouveler l'identifiant de session apres authentification.
+    await new Promise((resolve, reject) => {
+      req.session.regenerate((err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
+
     req.session.tiktokUser = {
       openId: profile.open_id,
       displayName: profile.display_name || "Utilisateur TikTok",
