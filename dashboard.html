@@ -2199,6 +2199,8 @@ document.getElementById("prepare-video-montage")
           
           // Mémoriser la position temporelle sélectionnée.
           playbackElapsedBeforePause = targetSeconds;
+          // VIDEAPILOT_PLAYBACK_SEEK_SAVE_F8_107
+          savePlaybackPosition(targetSeconds);
 
           // Actualiser le chronomètre et la progression pendant la pause.
           if (playbackPaused) {
@@ -2358,6 +2360,8 @@ document.getElementById("prepare-video-montage")
 
           // Appliquer la nouvelle position de lecture.
           playbackElapsedBeforePause = targetSeconds;
+          // VIDEAPILOT_PLAYBACK_SEEK_SAVE_F8_107
+          savePlaybackPosition(targetSeconds);
           playbackStartTime = Date.now();
 
           // Actualiser immédiatement le lecteur pendant la lecture.
@@ -2478,13 +2482,171 @@ document.getElementById("prepare-video-montage")
         });
         
         // Lecture simulée de la timeline, sans vidéo ni audio.
+        /* VIDEAPILOT_PLAYBACK_PERSISTENCE_F8_102 */
+        const playbackStorageKey =
+          "videapilot:playback:" + String(projectId) + ":" +
+          String(script.length) + ":" +
+          Array.from(script).reduce(
+            (hash, character) =>
+              (Math.imul(hash, 31) + character.codePointAt(0)) | 0,
+            0
+          );
+
+        const savePlaybackPosition = (seconds) => {
+          const position = Number(seconds);
+          if (!Number.isFinite(position)) return;
+
+          try {
+            localStorage.setItem(
+              playbackStorageKey,
+              String(Math.max(
+                0,
+                Math.min(position, montage.totalDurationSeconds)
+              ))
+            );
+          } catch (_) {
+            // Storage may be unavailable.
+          }
+        };
+
+        // VIDEAPILOT_PLAYBACK_RESTORE_F8_109
+        const loadPlaybackPosition = () => {
+          try {
+            const stored = localStorage.getItem(playbackStorageKey);
+            if (stored === null || stored.trim() === '') return 0;
+            const position = Number(stored);
+            if (!Number.isFinite(position) || position < 0) return 0;
+            return Math.min(position, montage.totalDurationSeconds);
+          } catch (_) {
+            return 0;
+          }
+        };
+
         let playbackTimer = null;
         let playbackStartTime = 0;
         
         // Gestion de la pause et de la reprise.
         let playbackPaused = false;
-        let playbackElapsedBeforePause = 0;
+        // VIDEAPILOT_PLAYBACK_INITIAL_POSITION_F8_111
+        let playbackElapsedBeforePause = loadPlaybackPosition();
+
+        // VIDEAPILOT_PLAYBACK_VISUAL_RESTORE_F8_116
+        // Restore the visual position without starting playback.
+        if (playbackElapsedBeforePause > 0) {
+          const restoredSeconds = playbackElapsedBeforePause;
+          const restoredRemaining = Math.max(
+            0,
+            montage.totalDurationSeconds - restoredSeconds
+          );
+          const restoredPercent =
+            montage.totalDurationSeconds > 0
+              ? (restoredSeconds / montage.totalDurationSeconds) * 100
+              : 0;
+
+          playbackCounter.textContent =
+            "Position : " + formatPlaybackTime(restoredSeconds) +
+            " / " + formatPlaybackTime(montage.totalDurationSeconds) +
+            " | Restant : " + formatPlaybackTime(restoredRemaining);
+
+          playbackProgressBar.style.width = restoredPercent + "%";
+          playbackPercentage.textContent =
+            "Progression : " + Math.floor(restoredPercent) + " %";
+
+          progressContainer.setAttribute(
+            "aria-valuenow",
+            String(Math.floor(restoredSeconds))
+          );
+          progressContainer.setAttribute(
+            "aria-valuetext",
+            Math.floor(restoredSeconds) + " secondes sur " +
+            montage.totalDurationSeconds + " secondes"
+          );
+
+          playbackStatus.textContent = "Position sauvegardee - lecture arretee";
+        }
+
         let playbackPauseStartTime = 0;
+
+        // VIDEAPILOT_PLAYBACK_SCENE_RESTORE_F8_118
+        // Restore the active scene without starting playback.
+        if (playbackElapsedBeforePause > 0 && montage.timeline.length > 0) {
+          const restoredSeconds = playbackElapsedBeforePause;
+
+          const restoredScene = montage.timeline.find(scene =>
+            restoredSeconds >= scene.startSeconds &&
+            restoredSeconds < scene.endSeconds
+          ) || montage.timeline[montage.timeline.length - 1];
+
+          const restoredSceneIndex = montage.timeline.indexOf(restoredScene);
+          const restoredSegment = horizontalTimeline.children[restoredSceneIndex];
+
+          if (restoredSegment) {
+            restoredSegment.dispatchEvent(
+              new MouseEvent("click", { bubbles: true, detail: 0 })
+            );
+          }
+
+          const sceneElapsed = Math.max(
+            0,
+            Math.min(
+              restoredScene.durationSeconds,
+              restoredSeconds - restoredScene.startSeconds
+            )
+          );
+
+          const sceneRemaining = Math.max(
+            0,
+            restoredScene.durationSeconds - sceneElapsed
+          );
+
+          const scenePercent =
+            restoredScene.durationSeconds > 0
+              ? (sceneElapsed / restoredScene.durationSeconds) * 100
+              : 0;
+
+          sceneTimeIndicator.textContent =
+            "Scene " + restoredScene.sceneNumber +
+            " - Ecoule : " + formatPlaybackTime(sceneElapsed) +
+            " | Restant : " + formatPlaybackTime(sceneRemaining);
+
+          sceneProgressBar.style.width = scenePercent + "%";
+
+          sceneProgressPercentage.textContent =
+            "Progression de la scene : " +
+            Math.floor(scenePercent) + " %";
+
+          if (
+            Array.isArray(restoredScene.dialogues) &&
+            restoredScene.dialogues.length > 0
+          ) {
+            const dialogues = [...restoredScene.dialogues].sort(
+              (a, b) => (a.order || 0) - (b.order || 0)
+            );
+
+            const secondsPerDialogue =
+              restoredScene.durationSeconds / dialogues.length;
+
+            const dialogueIndex = Math.min(
+              dialogues.length - 1,
+              Math.floor(
+                sceneElapsed / Math.max(0.001, secondsPerDialogue)
+              )
+            );
+
+            const dialogue = dialogues[dialogueIndex];
+
+            const subtitles =
+              videoPreview.querySelector(".videapilot-subtitles");
+
+            if (subtitles) {
+              subtitles.textContent =
+                (dialogue.character || "Narrateur") +
+                " : " +
+                (dialogue.text || "");
+            }
+          }
+        }
+
         
         // Fonction de lecture partagée entre Démarrer et Reprendre.
         let updatePlayback = null;
@@ -2498,8 +2660,11 @@ document.getElementById("prepare-video-montage")
             playbackPaused = false;
 
             if (typeof updatePlayback === "function") {
+              // VIDEAPILOT_PLAYBACK_INTERVAL_GUARD_F8_127_1
               updatePlayback();
-              playbackTimer = setInterval(updatePlayback, 1000);
+              if (!pauseTimelineButton.disabled) {
+                playbackTimer = setInterval(updatePlayback, 1000);
+              }
             }
 
             pauseTimelineButton.textContent = "⏸ Pause";
@@ -2525,6 +2690,15 @@ document.getElementById("prepare-video-montage")
           playbackElapsedBeforePause +=
             (Date.now() - playbackStartTime) / 1000;
 
+          // VIDEAPILOT_PLAYBACK_PAUSE_SAVE_F8_120
+          playbackElapsedBeforePause = Math.max(
+            0,
+            Math.min(
+              playbackElapsedBeforePause,
+              montage.totalDurationSeconds
+            )
+          );
+          savePlaybackPosition(playbackElapsedBeforePause);
           playbackPauseStartTime = Date.now();
           playbackPaused = true;
 
@@ -2557,6 +2731,8 @@ document.getElementById("prepare-video-montage")
             // Réinitialiser l'état de pause.
             playbackPaused = false;
             playbackElapsedBeforePause = 0;
+            // VIDEAPILOT_PLAYBACK_STOP_RESET_F8_121
+            savePlaybackPosition(0);
             playbackPauseStartTime = 0;
 
             // Remettre le chronomètre visuel à zéro.
@@ -2622,7 +2798,15 @@ document.getElementById("prepare-video-montage")
           
           // Réinitialiser les données de pause pour une nouvelle lecture.
           playbackPaused = false;
-          playbackElapsedBeforePause = 0;
+          // // VIDEAPILOT_PLAYBACK_DISPLAY_F8_115
+VIDEAPILOT_PLAYBACK_RESUME_F8_113
+          playbackElapsedBeforePause = Math.max(
+            0,
+            Math.min(
+              playbackElapsedBeforePause,
+              montage.totalDurationSeconds
+            )
+          );
           playbackPauseStartTime = 0;
           
           playbackStartTime = Date.now();
@@ -2634,14 +2818,14 @@ document.getElementById("prepare-video-montage")
           playbackStatus.style.borderColor = "#86efac";
           // Réinitialiser le compteur au début de la lecture.
           playbackCounter.textContent =
-            "⏱ " + formatPlaybackTime(0) +
+            "⏱ " + formatPlaybackTime(playbackElapsedBeforePause) +
             " / " + formatPlaybackTime(montage.totalDurationSeconds);
 
           // Remettre la barre de progression à zéro.
-          playbackProgressBar.style.width = "0%";
+          playbackProgressBar.style.width = (montage.totalDurationSeconds > 0 ? (playbackElapsedBeforePause / montage.totalDurationSeconds) * 100 : 0) + "%";
 
           // Réinitialiser le pourcentage au démarrage.
-          playbackPercentage.textContent = "Progression : 0 %";
+          playbackPercentage.textContent = "Progression : " + Math.floor(montage.totalDurationSeconds > 0 ? (playbackElapsedBeforePause / montage.totalDurationSeconds) * 100 : 0) + " %";
 
           // Réinitialiser le temps de la première scène au démarrage.
           const startingScene = montage.timeline[0];
@@ -2684,6 +2868,8 @@ document.getElementById("prepare-video-montage")
             );
 
             // Calculer le temps restant pendant la lecture.
+            // VIDEAPILOT_PLAYBACK_SAVE_F8_105
+            savePlaybackPosition(currentSeconds);
             const remainingSeconds = Math.max(
               0,
               montage.totalDurationSeconds - currentSeconds
@@ -2778,6 +2964,8 @@ document.getElementById("prepare-video-montage")
               // Réinitialiser l'état de pause.
               playbackPaused = false;
               playbackElapsedBeforePause = 0;
+              // VIDEAPILOT_PLAYBACK_END_RESET_F8_122
+              savePlaybackPosition(0);
               playbackPauseStartTime = 0;
 
               // Restaurer le bouton de lecture.
@@ -2899,8 +3087,11 @@ document.getElementById("prepare-video-montage")
             }
           };
 
+          // VIDEAPILOT_PLAYBACK_INTERVAL_GUARD_F8_127_1
           updatePlayback();
-          playbackTimer = setInterval(updatePlayback, 1000);
+          if (!pauseTimelineButton.disabled) {
+            playbackTimer = setInterval(updatePlayback, 1000);
+          }
         });
 
         for (const scene of montage.timeline) {
@@ -2944,6 +3135,31 @@ document.getElementById("prepare-video-montage")
 
           card.append(title, details, durationBar);
           timeline.appendChild(card);
+        }
+
+        // VIDEAPILOT_PLAYBACK_CARD_RESTORE_F8_134
+        // Highlight the saved scene after all cards are created.
+        if (playbackElapsedBeforePause > 0 && montage.timeline.length > 0) {
+          const restoredSceneForCard = montage.timeline.find(scene =>
+            playbackElapsedBeforePause >= scene.startSeconds &&
+            playbackElapsedBeforePause < scene.endSeconds
+          ) || montage.timeline[montage.timeline.length - 1];
+
+          const sceneCards = timeline.querySelectorAll(".montage-scene-card");
+
+          sceneCards.forEach(card => {
+            card.style.border = "1px solid #ddd";
+            card.style.background = "";
+          });
+
+          const restoredCard = Array.from(sceneCards).find(card =>
+            card.dataset.sceneNumber === String(restoredSceneForCard.sceneNumber)
+          );
+
+          if (restoredCard) {
+            restoredCard.style.border = "2px solid #2563eb";
+            restoredCard.style.background = "#dbeafe";
+          }
         }
 
         preview.style.display = "block";
