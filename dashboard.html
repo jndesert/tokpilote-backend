@@ -687,16 +687,17 @@ loadVideoProjects();
       border:1px solid #cbd5e1;
       border-radius:10px;
       background:#f8fafc;
+       color:#0f172a;
     "
   >
     <h4 id="videapilot-render-heading">
-      ?? G?n?ration de la vid?o MP4
+      🎬 Génération de la vidéo MP4
     </h4>
 
     <p id="videapilot-render-notice">
-      Le moteur vid?o a ?t? valid? en test local.
-      La g?n?ration depuis le tableau de bord
-      n'est pas encore activ?e.
+      Le moteur vidéo a été validé en test local.
+      La génération depuis le tableau de bord
+      n'est pas encore activée.
     </p>
 
     <button
@@ -713,7 +714,7 @@ loadVideoProjects();
         cursor:not-allowed;
       "
     >
-      ?? G?n?rer ma vid?o
+      Générer ma vidéo
     </button>
 
     <p
@@ -722,12 +723,12 @@ loadVideoProjects();
       aria-live="polite"
       style="margin-top:12px;"
     >
-      G?n?ration indisponible pour le moment.
+      Génération indisponible pour le moment.
     </p>
 
     <div
       id="videapilot-render-result"
-      aria-label="R?sultat de la g?n?ration vid?o"
+      aria-label="Résultat de la génération vidéo"
       hidden
     ></div>
   </section>
@@ -853,7 +854,7 @@ loadVideoProjects();
       }
 
       refresh();
-      setStatus("G?n?ration indisponible pour le moment.");
+      setStatus("Génération indisponible pour le moment.");
       result.hidden = true;
 
       return {
