@@ -5,6 +5,7 @@ const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 
 const execFileAsync = promisify(execFile);
+const { runMp4Test } = require("./video-ffmpeg-mp4-test.js");
 
 const PORT = Number(process.env.PORT || 10000);
 const HOST = "0.0.0.0";
@@ -18,6 +19,35 @@ let diagnosticResult = {
   ffprobe: null,
   libx264: null
 };
+
+let mp4DiagnosticResult = {
+  status: "pending",
+  mp4Created: false,
+  mp4Valid: false
+};
+
+async function runMp4DiagnosticOnce() {
+  try {
+    mp4DiagnosticResult = await runMp4Test();
+
+    console.log(
+      "MP4_DIAGNOSTIC_STATUS :",
+      mp4DiagnosticResult.status
+    );
+  } catch (error) {
+    mp4DiagnosticResult = {
+      status: "error",
+      mp4Created: false,
+      mp4Valid: false,
+      error: error.message
+    };
+
+    console.error(
+      "MP4_DIAGNOSTIC_ERROR :",
+      error.message
+    );
+  }
+}
 
 async function checkExecutable(name) {
   try {
@@ -107,6 +137,17 @@ const server = http.createServer((request, response) => {
     return;
   }
 
+  if (request.url === "/mp4-diagnostic") {
+    response.writeHead(200, {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store"
+    });
+
+    response.end(JSON.stringify(mp4DiagnosticResult));
+
+    return;
+  }
+
   response.writeHead(404, {
     "Content-Type": "application/json"
   });
@@ -121,6 +162,8 @@ server.listen(PORT, HOST, () => {
     "DIAGNOSTIC_HTTP_LISTENING :",
     PORT
   );
+
+  runMp4DiagnosticOnce();
 
   runDiagnostic().catch((error) => {
     diagnosticResult = {
