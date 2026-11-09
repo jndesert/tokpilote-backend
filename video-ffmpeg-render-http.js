@@ -15,7 +15,8 @@ const MAX_BUFFER = 1024 * 1024;
 let diagnosticResult = {
   status: "pending",
   ffmpeg: null,
-  ffprobe: null
+  ffprobe: null,
+  libx264: null
 };
 
 async function checkExecutable(name) {
@@ -38,10 +39,31 @@ async function runDiagnostic() {
   const ffmpeg = await checkExecutable("ffmpeg");
   const ffprobe = await checkExecutable("ffprobe");
 
+  let libx264 = false;
+
+  if (ffmpeg) {
+    try {
+      const { stdout } = await execFileAsync(
+        "ffmpeg",
+        ["-hide_banner", "-encoders"],
+        {
+          timeout: TIMEOUT_MS,
+          maxBuffer: MAX_BUFFER,
+          windowsHide: true
+        }
+      );
+
+      libx264 = /^\s*V\S*\s+libx264\s/m.test(stdout);
+    } catch {
+      libx264 = false;
+    }
+  }
+
   diagnosticResult = {
     status: "complete",
     ffmpeg,
-    ffprobe
+    ffprobe,
+    libx264
   };
 
   console.log(
@@ -104,7 +126,8 @@ server.listen(PORT, HOST, () => {
     diagnosticResult = {
       status: "error",
       ffmpeg: null,
-      ffprobe: null
+      ffprobe: null,
+      libx264: null
     };
 
     console.error(
