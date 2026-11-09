@@ -26,6 +26,7 @@ const { randomUUID } = require("node:crypto");
 const { synchronizeProjectScenes } = require("./video-scene-sync");
 const { preserveSceneIdentities } = require("./video-scene-identity");
 const { registerVideoRenderRoute } = require("./video-render-route");
+const { registerAdminTempUploadRoute } = require("./video-admin-temp-upload-route");
 
 const express = require("express");
 const session = require("express-session");
@@ -378,6 +379,7 @@ const WEBSITE_URL = "https://videapilot.fr/";
 app.disable("x-powered-by");
 app.use(express.json());
 registerVideoRenderRoute(app, pool);
+registerAdminTempUploadRoute(app, { adminOpenIds: process.env.VIDEAPILOT_ADMIN_OPEN_IDS });
 
 app.get("/", (req, res) => {
   res.json({
@@ -2743,6 +2745,18 @@ app.use((err, req, res, next) => {
 
   if (res.headersSent) {
     return next(err);
+  }
+
+  if (
+    err &&
+    (err.status === 413 ||
+      err.statusCode === 413 ||
+      err.type === "entity.too.large")
+  ) {
+    return res.status(413).json({
+      success: false,
+      error: "PAYLOAD_TOO_LARGE"
+    });
   }
 
   return res.status(500).json({

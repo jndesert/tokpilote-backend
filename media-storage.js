@@ -1,7 +1,23 @@
 "use strict";
+const { validateMp4ForStorage } = require("./video-mp4-validator");
 
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
 const zlib = require("node:zlib");
+const fsPromises = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
+
+const {
+  validateImageSignature
+} = require("./video-image-signature");
+
+const {
+  validateImageDecoding
+} = require("./video-image-decoder");
+
+const {
+  validateImageDimensions
+} = require("./video-image-dimensions");
 
 const MEDIA_STORAGE_CONFIG = {
   enabled: false,
@@ -45,6 +61,7 @@ function createMediaStorageClient() {
 function validateMediaContentType(contentType) {
   const allowedContentTypes = [
     "image/png",
+    "image/jpeg",
     "video/mp4"
   ];
 
@@ -62,9 +79,9 @@ function validateMediaSize(contentType, sizeBytes) {
     throw new Error("MEDIA_STORAGE_INVALID_SIZE");
   }
 
-  const maxBytes = contentType === "image/png"
-    ? MEDIA_STORAGE_CONFIG.maxImageBytes
-    : MEDIA_STORAGE_CONFIG.maxVideoBytes;
+  const maxBytes = contentType === "video/mp4"
+    ? MEDIA_STORAGE_CONFIG.maxVideoBytes
+    : MEDIA_STORAGE_CONFIG.maxImageBytes;
 
   if (sizeBytes > maxBytes) {
     throw new Error("MEDIA_STORAGE_FILE_TOO_LARGE");
@@ -988,6 +1005,18 @@ function validateMediaSignature(body, contentType) {
     validatePngChunks(body);
   }
 
+  if (contentType === "image/jpeg") {
+    if (
+      body.length < 5 ||
+      body[0] !== 0xFF ||
+      body[1] !== 0xD8 ||
+      body[2] !== 0xFF ||
+      body[body.length - 2] !== 0xFF ||
+      body[body.length - 1] !== 0xD9
+    ) {
+      throw new Error("MEDIA_STORAGE_INVALID_SIGNATURE");
+    }
+  }
   if (contentType === "video/mp4") {
     if (body.length < 16) {
       throw new Error("MEDIA_STORAGE_INVALID_SIGNATURE");
@@ -1030,6 +1059,97 @@ function validateMediaUpload(body, contentType) {
 
   return true;
 }
+
+// Validation approfondie des images avant stockage.
+async function validateMediaUploadForStorage(body, contentType) {
+  validateMediaUpload(body, contentType);
+
+  // Les protections PNG existantes restent inchangees.
+  if (contentType === "video/mp4") {
+    await validateMp4ForStorage(body);
+    return true;
+  }
+
+  if (contentType !== "image/jpeg") {
+    return true;
+  }
+
+  let temporaryDirectory;
+  let validationError = null;
+
+  try {
+    temporaryDirectory = await fsPromises.mkdtemp(
+      path.join(os.tmpdir(), "videapilot-media-")
+    );
+
+    const temporaryFile = path.join(
+      temporaryDirectory,
+      "image.jpg"
+    );
+
+    await fsPromises.writeFile(
+      temporaryFile,
+      body,
+      {
+        flag: "wx",
+        mode: 0o600
+      }
+    );
+
+    // Premiere verification : signature JPEG.
+    validateImageSignature(
+      temporaryFile,
+      "image/jpeg"
+    );
+
+    // Deuxieme verification : dimensions avant decodage.
+    await validateImageDimensions(
+      temporaryFile
+    );
+
+    // Troisieme verification : decodage reel.
+    await validateImageDecoding(
+      temporaryFile,
+      "image/jpeg"
+    );
+
+  } catch (error) {
+    validationError = error;
+
+  } finally {
+    if (temporaryDirectory) {
+      try {
+        await fsPromises.rm(
+          temporaryDirectory,
+          {
+            recursive: true,
+            force: true
+          }
+        );
+
+      } catch (cleanupError) {
+        // Un echec de nettoyage doit toujours etre signale.
+        validationError = new Error(
+          "MEDIA_STORAGE_TEMP_CLEANUP_FAILED"
+        );
+      }
+    }
+  }
+
+  if (validationError) {
+    if (
+      validationError != null &&
+      typeof validationError.message === "string" &&
+      validationError.message.startsWith("MEDIA_STORAGE_")
+    ) {
+      throw validationError;
+    }
+
+    throw new Error("MEDIA_STORAGE_INVALID_IMAGE");
+  }
+
+  return true;
+}
 async function uploadMedia({ key, body, contentType }) {
   if (!MEDIA_STORAGE_CONFIG.enabled) {
     throw new Error("MEDIA_STORAGE_DISABLED");
@@ -1039,7 +1159,10 @@ async function uploadMedia({ key, body, contentType }) {
     throw new Error("MEDIA_STORAGE_INVALID_INPUT");
   }
 
-  validateMediaUpload(body, contentType);
+  // Refuser les cles dangereuses avant toute operation S3.
+  validateMediaStorageKey(key);
+
+  await validateMediaUploadForStorage(body, contentType)
 
   const client = createMediaStorageClient();
 
@@ -1058,8 +1181,189 @@ async function uploadMedia({ key, body, contentType }) {
       bucket: MEDIA_STORAGE_CONFIG.bucket,
       key
     };
+
+  } catch (error) {
+    if (
+      error != null &&
+      typeof error.message === "string" &&
+      error.message.startsWith("MEDIA_STORAGE_")
+    ) {
+      throw error;
+    }
+
+    throw new Error("MEDIA_STORAGE_UPLOAD_FAILED");
+
   } finally {
     client.destroy();
+  }
+}
+
+
+// F9.26.3 : validation des cles de stockage.
+function validateMediaStorageKey(key) {
+  if (
+    typeof key !== "string" ||
+    key.length === 0 ||
+    key.length > 1024 ||
+    key.startsWith("/") ||
+    key.includes("\\") ||
+    /[\u0000-\u001f\u007f]/.test(key) ||
+    key.split("/").some(part =>
+      part === "" || part === "." || part === ".."
+    )
+  ) {
+    throw new Error("MEDIA_STORAGE_INVALID_KEY");
+  }
+
+  return true;
+}
+
+// Lecture limitee du flux S3.
+async function readMediaObjectBody(body, maxBytes) {
+  const chunks = [];
+  let totalBytes = 0;
+
+  try {
+    // La validation doit aussi passer par le nettoyage.
+    if (
+      !body ||
+      typeof body[Symbol.asyncIterator] !== "function"
+    ) {
+      throw new Error("MEDIA_STORAGE_INVALID_RESPONSE");
+    }
+
+    for await (const chunk of body) {
+      if (
+        !Buffer.isBuffer(chunk) &&
+        !(chunk instanceof Uint8Array)
+      ) {
+        throw new Error("MEDIA_STORAGE_INVALID_RESPONSE");
+      }
+
+      const buffer = Buffer.from(chunk);
+
+      totalBytes += buffer.length;
+
+      if (totalBytes > maxBytes) {
+        throw new Error("MEDIA_STORAGE_FILE_TOO_LARGE");
+      }
+
+      chunks.push(buffer);
+    }
+
+    if (totalBytes === 0) {
+      throw new Error("MEDIA_STORAGE_INVALID_BODY");
+    }
+
+    return Buffer.concat(chunks, totalBytes);
+
+  } catch (error) {
+    // Ne pas masquer l'erreur initiale si destroy echoue.
+    try {
+      if (body && typeof body.destroy === "function") {
+        body.destroy();
+      }
+    } catch {
+      // Erreur de nettoyage ignoree.
+    }
+
+    throw error;
+  }
+}
+
+// Telechargement et validation d'un objet S3.
+async function downloadMedia({ key, contentType }) {
+  if (!MEDIA_STORAGE_CONFIG.enabled) {
+    throw new Error("MEDIA_STORAGE_DISABLED");
+  }
+
+  if (!key || !contentType) {
+    throw new Error("MEDIA_STORAGE_INVALID_INPUT");
+  }
+
+  validateMediaStorageKey(key);
+  validateMediaContentType(contentType);
+
+  const maxBytes = contentType === "video/mp4"
+    ? MEDIA_STORAGE_CONFIG.maxVideoBytes
+    : MEDIA_STORAGE_CONFIG.maxImageBytes;
+
+  const client = createMediaStorageClient();
+
+  let response;
+  let bodyReadStarted = false;
+
+  try {
+    response = await client.send(
+      new GetObjectCommand({
+        Bucket: MEDIA_STORAGE_CONFIG.bucket,
+        Key: key
+      })
+    );
+
+    if (response.ContentType !== contentType) {
+      throw new Error("MEDIA_STORAGE_CONTENT_TYPE_MISMATCH");
+    }
+
+    if (
+      response.ContentLength !== undefined &&
+      (
+        !Number.isSafeInteger(response.ContentLength) ||
+        response.ContentLength <= 0 ||
+        response.ContentLength > maxBytes
+      )
+    ) {
+      throw new Error("MEDIA_STORAGE_FILE_TOO_LARGE");
+    }
+
+    bodyReadStarted = true;
+
+    const body = await readMediaObjectBody(
+      response.Body,
+      maxBytes
+    );
+
+    if (
+      response.ContentLength !== undefined &&
+      response.ContentLength !== body.length
+    ) {
+      throw new Error("MEDIA_STORAGE_CONTENT_LENGTH_MISMATCH");
+    }
+
+    await validateMediaUploadForStorage(body, contentType)
+
+    return {
+      provider: MEDIA_STORAGE_CONFIG.provider,
+      bucket: MEDIA_STORAGE_CONFIG.bucket,
+      key,
+      contentType,
+      sizeBytes: body.length,
+      body
+    };
+
+  } catch (error) {
+    if (
+      error != null &&
+      typeof error.message === "string" &&
+      error.message.startsWith("MEDIA_STORAGE_")
+    ) {
+      throw error;
+    }
+
+    throw new Error("MEDIA_STORAGE_DOWNLOAD_FAILED");
+
+  } finally {
+    try {
+      if (
+        response?.Body &&
+        !bodyReadStarted &&
+        typeof response.Body.destroy === "function"
+      ) {
+        response.Body.destroy();
+      }
+    } finally {
+      client.destroy();
+    }
   }
 }
 
@@ -1070,5 +1374,9 @@ module.exports = {
   validateMediaContentType,
   validateMediaSize,
   validateMediaUpload,
-  uploadMedia
+  validateMediaUploadForStorage,
+  uploadMedia,
+  downloadMedia,
+  validateMediaStorageKey,
+  readMediaObjectBody
 };
