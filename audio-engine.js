@@ -25,7 +25,10 @@ function prepareAudioJob(segment) {
     voiceConfig,
     emotion,
     text,
-    outputFileName
+    outputFileName,
+    startSeconds,
+    endSeconds,
+    pauseAfterSeconds
   } = segment;
 
   if (
@@ -47,6 +50,9 @@ function prepareAudioJob(segment) {
     emotion,
     text,
     outputFileName,
+    startSeconds,
+    endSeconds,
+    pauseAfterSeconds,
     provider: AUDIO_ENGINE_CONFIG.provider,
     format: AUDIO_ENGINE_CONFIG.outputFormat,
     language: AUDIO_ENGINE_CONFIG.language,
