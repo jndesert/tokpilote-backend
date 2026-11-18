@@ -25,7 +25,8 @@ const {
 const { randomUUID } = require("node:crypto");
 const { synchronizeProjectScenes } = require("./video-scene-sync");
 const { preserveSceneIdentities } = require("./video-scene-identity");
-const { registerVideoRenderRoute } = require("./video-render-route");
+const { registerVideoRenderRoute, localRenderAuthorized, productionRenderAuthorized } = require("./video-render-route");
+const { registerVideoMvpRoutes } = require("./video-mvp-route");
 const { registerAdminTempUploadRoute } = require("./video-admin-temp-upload-route");
 
 const express = require("express");
@@ -38,10 +39,17 @@ const crypto = require("node:crypto");
 const path = require("node:path");
 
 const app = express();
-// Connexion sécurisée à l'API OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Initialisation différée : les fonctions non-IA restent disponibles sans clé API.
+let openaiClient = null;
+function getOpenAIClient() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY_MISSING");
+  }
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openaiClient;
+}
 
 
 /**
@@ -61,7 +69,7 @@ async function generateSceneImageWithOpenAI(visualPrompt) {
     throw new Error("IMAGE_GENERATION_DISABLED");
   }
 
-  const result = await openai.images.generate({
+  const result = await getOpenAIClient().images.generate({
     model: "gpt-image-1",
     prompt: visualPrompt.trim(),
     size: "1024x1024",
@@ -85,6 +93,11 @@ const PORT = process.env.PORT || 3000;
 // Connexion à la base PostgreSQL de VidéaPilot
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  // VIDEAPILOT_LOCAL_READONLY_V1 : toutes les transactions PostgreSQL sont en lecture seule en mode local protege.
+  options: process.env.VIDEAPILOT_LOCAL_READONLY === "true" ? "-c default_transaction_read_only=on" : undefined,
+  ssl: process.env.DATABASE_URL
+    ? { rejectUnauthorized: true }
+    : undefined,
 });
 
 // Création de la table des projets vidéo
@@ -136,7 +149,7 @@ async function initializeImageUsage() {
   console.log("Table des quotas images IA prête");
 }
 
-initializeImageUsage().catch((error) => {
+if (process.env.VIDEAPILOT_SKIP_DB_INIT !== "true") initializeImageUsage().catch((error) => {
   console.error(
     "Erreur initialisation quotas images IA :",
     error.message
@@ -181,7 +194,7 @@ async function initializeImageGenerationJobs() {
   console.log("Table de suivi des images IA prête");
 }
 
-initializeImageGenerationJobs().catch((error) => {
+if (process.env.VIDEAPILOT_SKIP_DB_INIT !== "true") initializeImageGenerationJobs().catch((error) => {
   console.error(
     "Erreur initialisation suivi images IA :",
     error.message
@@ -329,7 +342,7 @@ async function initializeImageGlobalUsage() {
   console.log("Table du quota global images IA prête");
 }
 
-initializeImageGlobalUsage().catch((error) => {
+if (process.env.VIDEAPILOT_SKIP_DB_INIT !== "true") initializeImageGlobalUsage().catch((error) => {
   console.error(
     "Erreur initialisation quota global images IA :",
     error.message
@@ -337,7 +350,7 @@ initializeImageGlobalUsage().catch((error) => {
 });
 
 // Initialiser les projets avant les scènes persistantes.
-initializeVideoProjects()
+if (process.env.VIDEAPILOT_SKIP_DB_INIT !== "true") initializeVideoProjects()
   .then(() => initializeVideoProjectScenes())
   .catch((error) => {
     console.error(
@@ -351,17 +364,20 @@ app.set("trust proxy", 1);
 
 app.use(
   session({
-    store: new pgSession({
-      pool: pool,
-      tableName: "user_sessions",
-      createTableIfMissing: true,
-    }),
+    // En mode local protege, ne jamais creer ni modifier les sessions sur Render.
+    store: process.env.VIDEAPILOT_LOCAL_READONLY === "true"
+      ? new session.MemoryStore()
+      : new pgSession({
+          pool: pool,
+          tableName: "user_sessions",
+          createTableIfMissing: true,
+        }),
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true,
+      secure: process.env.VIDEAPILOT_LOCAL_READONLY === "true" ? false : true,
       sameSite: "lax",
       maxAge: 24 * 60 * 60 * 1000,
     },
@@ -372,13 +388,23 @@ const CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY;
 const CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET;
 
 const REDIRECT_URI =
-  "https://videapilot-api.onrender.com/auth/tiktok/callback";
+  process.env.TIKTOK_REDIRECT_URI || "https://videapilot-api.onrender.com/auth/tiktok/callback";
+if (process.env.TIKTOK_REDIRECT_URI) {
+  const callback = new URL(REDIRECT_URI);
+  if (callback.protocol !== "https:" || callback.username || callback.password ||
+      callback.href !== callback.origin + "/auth/tiktok/callback" ||
+      callback.origin !== process.env.VIDEO_RENDER_ALLOWED_ORIGIN) {
+    throw new Error("INVALID_TIKTOK_REDIRECT_URI");
+  }
+}
 
 const WEBSITE_URL = "https://videapilot.fr/";
 
 app.disable("x-powered-by");
 app.use(express.json());
 registerVideoRenderRoute(app, pool);
+registerVideoMvpRoutes(app, pool);
+app.get("/assets/video-mvp.js", (req, res) => res.sendFile(path.join(__dirname, "video-mvp-dashboard.js")));
 registerAdminTempUploadRoute(app, { adminOpenIds: process.env.VIDEAPILOT_ADMIN_OPEN_IDS });
 
 app.get("/", (req, res) => {
@@ -468,7 +494,9 @@ app.post("/api/videos", async (req, res) => {
   // Autoriser uniquement les requêtes provenant de VidéaPilot
   const origin = req.get("Origin");
 
-  if (origin !== "https://videapilot-api.onrender.com") {
+  if (origin !== "https://videapilot-api.onrender.com" &&
+      !(process.env.VIDEO_MVP_ENABLED === "true" &&
+        (localRenderAuthorized(req) || productionRenderAuthorized(req)))) {
     return res.status(403).json({
       message: "Origine non autorisée."
     });
@@ -536,7 +564,9 @@ app.put("/api/videos/:id", async (req, res) => {
   res.set("Cache-Control", "no-store");
 
   const origin = req.get("Origin");
-  if (origin !== "https://videapilot-api.onrender.com") {
+  if (origin !== "https://videapilot-api.onrender.com" &&
+      !(process.env.VIDEO_MVP_ENABLED === "true" &&
+        (localRenderAuthorized(req) || productionRenderAuthorized(req)))) {
     return res.status(403).json({
       message: "Origine non autorisée."
     });
@@ -626,7 +656,7 @@ async function initializeAiUsage() {
 }
 
 // Initialiser la table des quotas IA au démarrage
-initializeAiUsage()
+if (process.env.VIDEAPILOT_SKIP_DB_INIT !== "true") initializeAiUsage()
   .then(() => {
     console.log("Table ai_usage prête.");
   })
@@ -878,7 +908,7 @@ app.post("/api/ai/generate-script", async (req, res) => {
   
   // Appel à OpenAI
   try {
-    const response = await openai.responses.create({
+    const response = await getOpenAIClient().responses.create({
       model: "gpt-5-mini",
       instructions: `Tu es un scénariste professionnel spécialisé
 dans les vidéos YouTube, TikTok et Instagram.
@@ -988,7 +1018,7 @@ app.post("/api/ai/complete-script", async (req, res) => {
   }
 
   try {
-    const response = await openai.responses.create({
+    const response = await getOpenAIClient().responses.create({
       model: "gpt-5-mini",
       instructions: `Tu es un scénariste professionnel.
 Continue le scénario français fourni à partir de sa fin.
@@ -1579,9 +1609,9 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     try {
       projectResult = await pool.query(
         `
-        SELECT id
-        FROM video_projects
-        WHERE id = $1 AND user_id = $2
+        SELECT p.id, to_jsonb(p)->>'mvp_local_images' AS mvp_local_images
+        FROM video_projects p
+        WHERE p.id = $1 AND p.user_id = $2
         `,
         [projectId, userId]
       );
@@ -1602,6 +1632,13 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
         success: false,
         error: "PROJECT_NOT_FOUND",
         message: "Projet vidéo introuvable."
+      });
+    }
+    if (projectResult.rows[0].mvp_local_images === "true") {
+      return res.status(409).json({
+        success: false,
+        error: "MANUAL_PROJECT_SCENES",
+        message: "Les scènes de ce projet se préparent dans le montage manuel."
       });
     }
   }
@@ -2249,9 +2286,9 @@ const audioTestPreview = {
 
       const lockedProject = await client.query(
         `
-        SELECT id
-        FROM video_projects
-        WHERE id = $1 AND user_id = $2
+        SELECT p.id, to_jsonb(p)->>'mvp_local_images' AS mvp_local_images
+        FROM video_projects p
+        WHERE p.id = $1 AND p.user_id = $2
         FOR UPDATE
         `,
         [projectId, userId]
@@ -2259,6 +2296,9 @@ const audioTestPreview = {
 
       if (lockedProject.rows.length === 0) {
         throw new Error("PROJECT_NOT_FOUND");
+      }
+      if (lockedProject.rows[0].mvp_local_images === "true") {
+        throw new Error("MANUAL_PROJECT_SCENES");
       }
 
       // Charger les scenes existantes sous le verrou du projet.
@@ -2765,7 +2805,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, process.env.VIDEAPILOT_BIND_HOST || "0.0.0.0", () => {
   console.log(
     `VidéaPilot Backend démarré sur le port ${PORT}`
   );

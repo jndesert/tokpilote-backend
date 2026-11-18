@@ -108,9 +108,10 @@ async function renderVideo(options = {}) {
   const dossierSortie = path.dirname(destination);
   fs.mkdirSync(dossierSortie, { recursive: true });
 
+  // VIDEAPILOT_SAFE_MP4_OUTPUT_542_13_115_164
   const temporaryPath = path.join(
     dossierSortie,
-    `videapilot_${process.pid}_${Date.now()}.mp4`
+    `videapilot_${process.pid}_${Date.now()}_${require('node:crypto').randomUUID()}.mp4`
   );
 
   const args = ["-hide_banner", "-loglevel", "error"];
@@ -168,7 +169,7 @@ async function renderVideo(options = {}) {
       )
     ] : []),
     "-movflags", "+faststart",
-    "-y",
+    "-n",
     temporaryPath
   );
 
@@ -186,7 +187,11 @@ async function renderVideo(options = {}) {
       throw new Error("Le fichier MP4 généré est vide.");
     }
 
-    fs.renameSync(temporaryPath, destination);
+    // VIDEAPILOT_ATOMIC_MP4_PUBLICATION_542_13_115_176
+    // Publication atomique sans ecrasement.
+    // Les deux chemins sont dans le meme dossier.
+    fs.linkSync(temporaryPath, destination);
+    fs.unlinkSync(temporaryPath);
 
     return {
       success: true,

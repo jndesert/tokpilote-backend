@@ -201,6 +201,7 @@
   </form>
 </section>
   </main>
+  <script src="/assets/video-mvp.js"></script>
   <script>
   async function loadTikTokProfile() {
     const nameElement = document.getElementById("tiktok-name");
@@ -471,6 +472,7 @@ async function loadVideoProjects() {
       const date = document.createElement("small");
       date.textContent = new Date(project.created_at)
         .toLocaleDateString("fr-FR");
+      window.attachVideoMvp?.(item, project.id);
 
       // Bouton pour modifier le projet
       const editButton = document.createElement("button");
@@ -814,7 +816,7 @@ loadVideoProjects();
 
         busy = true;
         refresh();
-        setStatus("G?n?ration en cours...");
+        setStatus("Génération en cours...");
 
         try {
           const response = await options.fetchRender({
@@ -825,17 +827,24 @@ loadVideoProjects();
             throw new Error("RENDER_REQUEST_FAILED");
           }
 
-          result.textContent =
-            "Vid?o g?n?r?e : " +
-            String(response.fileName || "");
+          result.textContent = "Vidéo générée : " + String(response.fileName || "");
+          if (typeof response.downloadUrl === "string" &&
+              /^\/api\/videos\/render\/download\/[0-9a-f-]{36}$/.test(response.downloadUrl)) {
+            const link = document.createElement("a");
+            link.href = response.downloadUrl;
+            link.textContent = "Télécharger le MP4";
+            link.setAttribute("download", response.fileName || "video.mp4");
+            result.appendChild(document.createTextNode(" — "));
+            result.appendChild(link);
+          }
 
           result.hidden = false;
-          setStatus("G?n?ration termin?e.");
+          setStatus("Génération terminée.");
 
           return response;
 
         } catch (error) {
-          setStatus("La g?n?ration a ?chou?.");
+          setStatus("La génération a échoué.");
           throw error;
 
         } finally {
@@ -1300,6 +1309,31 @@ loadVideoProjects();
   );
 })();
 
+/* VIDEAPILOT_SCRIPT_INVALIDATION_36_185 */
+(function () {
+  "use strict";
+
+  const scriptField =
+    document.getElementById("video-script");
+
+  if (!scriptField) return;
+
+  scriptField.addEventListener("input", () => {
+    const context =
+      window.videapilotRenderProjectContext;
+
+    if (context) {
+      context.invalidateMontage();
+    }
+
+    const requestGuard =
+      window.videapilotRenderRequestGuard;
+
+    if (requestGuard) {
+      requestGuard.invalidate();
+    }
+  });
+})();
 /* VIDEAPILOT_RENDER_CONTROLLER_514 */
 
 (function () {
@@ -1344,7 +1378,7 @@ loadVideoProjects();
       button,
       status,
       result,
-      localTestAuthorized: false,
+      localTestAuthorized: true,
 
       fetchRender:
         window.VideaPilotRenderTransport.createTransport({
@@ -1354,11 +1388,50 @@ loadVideoProjects();
 
   window.videapilotRenderController = controller;
 
-  button.disabled = true;
+  const notice = document.getElementById("videapilot-render-notice");
+  fetch("/api/videos/render/status", {
+    credentials: "same-origin", cache: "no-store"
+  }).then(response => response.ok ? response.json() : null)
+    .then(data => {
+      if (!data || data.enabled !== true) return;
+      controller.enableForLocalTest();
+      status.textContent = "Génération locale prête.";
+      if (notice) notice.textContent = "Génération MP4 locale autorisée pour votre session.";
+      button.style.background = "#2563eb";
+      button.style.cursor = "pointer";
+    }).catch(() => {});
 
-  console.log(
-    "VideaPilot : controleur initialise (inactif)"
-  );
+  button.addEventListener("click", async () => {
+    if (!controller.isEnabled() || controller.isBusy()) return;
+    const projectId = form.dataset.editId;
+    if (!projectId) {
+      status.textContent = "Sélectionnez ou enregistrez un projet avant le rendu.";
+      return;
+    }
+    const renderContext =
+      window.videapilotRenderProjectContext;
+
+    const currentScript =
+      document.getElementById("video-script")?.value || "";
+
+    if (
+      !renderContext ||
+      !renderContext.canRender(projectId, currentScript)
+    ) {
+      status.textContent =
+        "Préparez le montage du projet avant de générer la vidéo.";
+      return;
+    }
+
+    try {
+      await controller.requestRender(projectId);
+    } catch (error) {
+      console.error("Rendu VidéaPilot :", error.message);
+      status.textContent = "Rendu impossible : " + error.message;
+    }
+  });
+
+  console.log("VideaPilot : controleur de rendu initialise");
 })();
 
 </script>
@@ -3164,6 +3237,21 @@ document.getElementById("prepare-video-montage")
 
         preview.style.display = "block";
       }
+
+      // VIDEAPILOT_MONTAGE_CONTEXT_READY_36_181
+      // Ne valider que le montage termine et toujours actuel.
+      if (!isStillCurrent()) {
+        return;
+      }
+
+      const renderContext =
+        window.videapilotRenderProjectContext;
+
+      if (!renderContext) {
+        throw new Error("RENDER_PROJECT_CONTEXT_MISSING");
+      }
+
+      renderContext.markMontagePrepared(projectId, script);
 
       result.textContent = JSON.stringify({
         success: true,

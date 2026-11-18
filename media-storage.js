@@ -20,7 +20,7 @@ const {
 } = require("./video-image-dimensions");
 
 const MEDIA_STORAGE_CONFIG = {
-  enabled: false,
+  enabled: process.env.MEDIA_STORAGE_ENABLED === "true",
   provider: "s3-compatible",
   region: process.env.MEDIA_STORAGE_REGION || "auto",
   endpoint: process.env.MEDIA_STORAGE_ENDPOINT || "",

@@ -29,6 +29,7 @@ const FIND_PROJECT_SCENES_FOR_RENDER = `
     s.title,
     s.duration_seconds,
     s.image_asset_id,
+    to_jsonb(p)->>'mvp_local_images' AS mvp_local_images,
     a.storage_key,
     a.mime_type,
     a.size_bytes,

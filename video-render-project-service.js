@@ -20,6 +20,10 @@ const {
   withSecureImageSnapshots
 } = require("./video-render-snapshot-secure");
 
+const {
+  withS3RenderImages
+} = require("./video-render-s3-adapter");
+
 function validateRenderIdentity(projectId, userId) {
   if (
     !/^[1-9]\d*$/.test(String(projectId)) ||
@@ -52,6 +56,8 @@ async function renderProjectVideo(options = {}) {
     userId,
     imageDirectory,
     outputDirectory,
+    imageSource = "local",
+    manualProject,
     audioDirectory = null,
     audioFileName = null
   } = options;
@@ -92,12 +98,22 @@ async function renderProjectVideo(options = {}) {
     FIND_PROJECT_SCENES_FOR_RENDER,
     [projectId, userId]
   );
+  if (typeof manualProject === "boolean" &&
+      sceneResult.rows.some(row => (row.mvp_local_images === "true") !== manualProject)) {
+    throw new Error("PROJECT_STORAGE_CHANGED");
+  }
 
-      // Verifier les chemins, tailles, dimensions et decodage.
-      const prepared = await prepareDatabaseRenderScenesSecure(
-        sceneResult.rows,
-        { imageDirectory }
-      );
+      // Refuser toute source inconnue.
+      if (imageSource !== "local" && imageSource !== "s3") {
+        throw new Error("INVALID_IMAGE_SOURCE");
+      }
+
+      // Garder les images disponibles pendant tout le rendu.
+      const executeWithImages = async (rows, directory) => {
+        const prepared = await prepareDatabaseRenderScenesSecure(
+          rows,
+          { imageDirectory: directory }
+        );
 
       // Verifier le dossier de sortie avant le rendu.
       const outputRoot = fs.realpathSync(outputDirectory);
@@ -141,7 +157,21 @@ async function renderProjectVideo(options = {}) {
         }
       );
 
-      return { prepared, result, outputName };
+        return { prepared, result, outputName };
+      };
+
+      if (imageSource === "s3") {
+        return withS3RenderImages(
+          sceneResult.rows,
+          ({ rows, imageDirectory: temporaryImageDirectory }) =>
+            executeWithImages(rows, temporaryImageDirectory)
+        );
+      }
+
+      return executeWithImages(
+        sceneResult.rows,
+        imageDirectory
+      );
     }
   );
 
