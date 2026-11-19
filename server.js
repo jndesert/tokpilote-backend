@@ -1665,7 +1665,7 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
   }
 
   // Identifier les scènes, avec ou sans Markdown ou numérotation préalable.
-  const scenePattern = /^[ \t]*(?:#{1,6}[ \t]*)?(?:\d+[).][ \t]*)?(?:\*{1,2})?(?:Scène|Scene)[ \t]+\d+[ \t]*[:.\-–—]/gim;
+  const scenePattern = /^[ \t]*(?:#{1,6}[ \t]*)?(?:\d+[).][ \t]*)?(?:\*{1,2}|_{1,2})?(?:Scène|Scene)[ \t]+\d+(?:\*{1,2}|_{1,2})?[ \t]*[:.\-–—]/gim;
 
   // Privilégier la partie contenant les dialogues plutôt que le sommaire.
   const detailsMatch = /^\s*(?:#{1,6}\s*)?(?:\*{1,2})?4[.)]\s*(?:\*{1,2})?Narration et dialogues\b/im.exec(script);
@@ -1684,21 +1684,18 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     const nextSection = /^\s*(?:#{1,6}\s*)?(?:\*{1,2})?[5-9][.)]\s+(?:Suggestions visuelles|Conclusion|Musique|Hashtags)\b/im.exec(tail);
     const content = nextSection ? tail.slice(0, nextSection.index).trim() : tail.trim();
     
-    const heading = content.split("\n")[0] || "";
-
-    const titleMatch = heading.match(
-      /^(?:Scène|Scene)\s+\d+\s*[—–:.-]\s*(.*?)(?:\s*\((\d+):(\d+)\s*[–—-]\s*(\d+):(\d+)\))?\s*$/i
-    );
-
-    const title = titleMatch?.[1]?.trim() || heading;
-
-    const startSeconds = titleMatch?.[2] !== undefined
-      ? Number(titleMatch[2]) * 60 + Number(titleMatch[3])
-      : null;
-
-    const endSeconds = titleMatch?.[4] !== undefined
-      ? Number(titleMatch[4]) * 60 + Number(titleMatch[5])
-      : null;
+    const heading = (content.split("\n")[0] || "").trim();
+    const headingText = heading.slice(match[0].trimStart().length)
+      .replace(/\s+#+\s*$/, "").trim().replace(/^[*_]+|[*_]+$/g, "").trim();
+    const clockRange = /\s*\((\d+):(\d+)\s*[–—-]\s*(\d+):(\d+)\)$/.exec(headingText);
+    const secondsRange = /\s*\((\d+)\s*(?:(?:s|secondes?)\s*)?(?:à|[–—-])\s*(\d+)\s*(?:s|secondes?)\)$/i.exec(headingText);
+    const range = clockRange || secondsRange;
+    const title = (range ? headingText.slice(0, range.index) : headingText)
+      .trim().replace(/^[*_]+|[*_]+$/g, "").trim() || heading;
+    const startSeconds = clockRange ? Number(clockRange[1]) * 60 + Number(clockRange[2])
+      : secondsRange ? Number(secondsRange[1]) : null;
+    const endSeconds = clockRange ? Number(clockRange[3]) * 60 + Number(clockRange[4])
+      : secondsRange ? Number(secondsRange[2]) : null;
 
     const durationSeconds =
       startSeconds !== null &&
@@ -1712,33 +1709,41 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     const lines = content.split("\n");
 
     for (const line of lines) {
-      const match = line.trim().match(
-        /^([^:\n]+?)\s*:\s*["“](.*?)["”]\s*$/
-      );
+      const match = line.trim().replace(/^(?:[-*+]\s+|>\s+)/, "")
+        .match(/^([^:\n]+?)\s*:\s*(.*)$/);
 
       if (!match) continue;
 
-      const speakerInfo = match[1].trim();
-      const text = match[2].trim();
+      const speakerInfo = match[1].trim().replace(/^[*_]+|[*_]+$/g, "").trim();
+      const spoken = match[2].trim().replace(/^(?:\*{1,2}|_{1,2})\s*/, "")
+        .replace(/^\([^()]+\)\s*(?=["“«])/, "");
+      const quotePattern = /["“]([^"”]*)["”]|«([^»]*)»/g;
+      const quotations = [...spoken.matchAll(quotePattern)];
+      if (!quotations.length || quotations[0].index !== 0) continue;
+      const unquoted = spoken.replace(quotePattern, "").trim()
+        .replace(/(?:\*{1,2}|_{1,2})$/, "").trim();
+      if (!/^(?:\([^()]+\)\s*)*$/.test(unquoted)) continue;
 
       const speakerMatch = speakerInfo.match(
         /^(.+?)\s*\(([^)]+)\)$/
       );
 
-      const speaker = speakerMatch
-        ? speakerMatch[1].trim()
-        : speakerInfo;
+      let speaker = (speakerMatch?.[1] || speakerInfo)
+        .trim().replace(/^[*_]+|[*_]+$/g, "").trim();
+
+      if (/^(?:(?:description|suggestions?)\s+visuelles?|visuels?|d[ée]cor|image|ambiance|action|plan|cam[ée]ra|musique|effets?\s+sonores?)\b/i.test(speaker)) continue;
+      if (/^narration$/i.test(speaker)) speaker = "Narrateur";
+      if (/^Léo(?:\s*,|\s+.+\b(?:crie|dit|murmure|répond)\s*$)/i.test(speaker)) {
+        speaker = "Léo";
+      }
 
       const emotion = speakerMatch
         ? speakerMatch[2].trim()
         : null;
 
-      if (speaker && text) {
-        dialogues.push({
-          speaker,
-          emotion,
-          text
-        });
+      for (const quotation of quotations) {
+        const text = (quotation[1] ?? quotation[2]).trim();
+        if (speaker && text) dialogues.push({ speaker, emotion, text });
       }
     }
 
@@ -1840,17 +1845,15 @@ const SCENE_AUDIO_MARGIN_SECONDS = 1.5;
 let nextSceneStartSeconds = 0;
 
 for (const scene of scenes) {
+  if (Number.isFinite(scene.durationSeconds) && scene.durationSeconds > 0) {
+    nextSceneStartSeconds = scene.endSeconds;
+    continue;
+  }
   const dialogueDuration = (scene.dialogues || []).reduce(
     (total, dialogue) =>
       total + estimateDialogueDuration(dialogue.text),
     0
   );
-
-  const originalDuration =
-    Number.isFinite(scene.durationSeconds) &&
-    scene.durationSeconds > 0
-      ? scene.durationSeconds
-      : 0;
 
   const requiredDuration =
     dialogueDuration > 0
@@ -1858,7 +1861,6 @@ for (const scene of scenes) {
       : 0;
 
   const adjustedDuration = Math.max(
-    originalDuration,
     requiredDuration,
     1
   );
@@ -1984,7 +1986,8 @@ for (const scene of scenes) {
   
   const hasConclusion =
     /^\s*(?:#{1,6}\s*)?(?:\*{1,2})?(?:\d+[.)]\s*)?Conclusion\b/im.test(script) ||
-    /(?:Scène|Scene)\s*\d+\s*[—–:-]\s*[^\n]*(?:bilan|épilogue|epilogue|conclusion|dénouement|denouement|fin de l'histoire)/im.test(script);
+    /(?:Scène|Scene)\s*\d+\s*[—–:-]\s*[^\n]*(?:bilan|épilogue|epilogue|conclusion|dénouement|denouement|fin de l'histoire)/im.test(script) ||
+    /^le\s+retour$/i.test(scenes.at(-1)?.title || "");
 
   if (!hasConclusion) {
     warnings.push(
