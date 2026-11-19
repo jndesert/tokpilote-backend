@@ -1603,7 +1603,9 @@ async function prepareProjectScenes(event) {
       const data = await response.json();
       if (!isStillCurrent()) return;
       result.textContent = response.ok
-        ? `Durées enregistrées. Montage provisoire : ${data.videoMontagePlan.totalDurationSeconds} s, à vérifier avec les fichiers audio réels.\n` + JSON.stringify(data, null, 2)
+        ? `Durées enregistrées. Montage provisoire : ${data.videoMontagePlan.totalDurationSeconds} s, à vérifier avec les fichiers audio réels.\n` +
+          "audioSegments et audioTimingDiagnostic décrivent les durées du scénario initial. audioGenerationPlan contient les horaires ajustés.\n" +
+          JSON.stringify(data, null, 2)
         : data.message || "Confirmation refusée. Préparez un nouvel aperçu.";
       return;
     }

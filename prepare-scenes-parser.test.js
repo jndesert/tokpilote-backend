@@ -7,6 +7,7 @@ const test = require("node:test");
 const vm = require("node:vm");
 const { randomUUID } = require("node:crypto");
 const { getVoiceConfig } = require("./voice-config");
+const { getVoiceMapping } = require("./voice-mapping");
 const { preserveSceneIdentities } = require("./video-scene-identity");
 const { synchronizeProjectScenes } = require("./video-scene-sync");
 const { buildSceneReconciliation, matchesSceneFingerprint, sceneSnapshotSql, updateReconciledDurations } = require("./video-scene-reconciliation");
@@ -358,7 +359,7 @@ test("durées audio : aperçu sans écriture et confirmation limitée aux durée
   assert.deepEqual(state.rows, original);
   assert.deepEqual(preview.differences.map(scene => scene.before.durationSeconds), [4, 6, 8, 8, 4]);
   assert.deepEqual(preview.differences.map(scene => scene.after.durationSeconds), [7, 6, 19, 15, 20]);
-  assert.deepEqual(preview.missingVoices, [{ voiceId: "petite_fille_sur_un_balcon", character: "Petite fille sur un balcon" }]);
+  assert.deepEqual(preview.missingVoices, []);
   assert.equal((await state.request("duration-confirm")).status, 400);
   const confirmed = await state.request("duration-confirm", { fingerprint: preview.fingerprint });
   assert.equal(confirmed.status, 200);
@@ -368,6 +369,29 @@ test("durées audio : aperçu sans écriture et confirmation limitée aux durée
   assert.equal(confirmed.videoMontagePlan.videoGenerated, false);
   assert.equal(confirmed.videoMontagePlan.audioGenerated, false);
   assert.ok(confirmed.audioJobs.every(job => !job.generated));
+  const girl = "petite_fille_sur_un_balcon";
+  for (const [voiceId, voice] of [[girl, "shimmer"], ["clara", "shimmer"], ["narrateur", "onyx"], ["leo", "echo"]]) {
+    assert.equal(getVoiceMapping(voiceId)?.voice, voice);
+  }
+  assert.equal(confirmed.audioGenerationPlan.length, 10);
+  assert.equal(confirmed.audioJobs.length, 10);
+  assert.equal(confirmed.audioGenerationPlan.filter(segment => segment.voiceId === girl).length, 2);
+  for (const [index, segment] of confirmed.audioGenerationPlan.entries()) {
+    const adjusted = confirmed.adjustedAudioSegments[index];
+    const scene = confirmed.videoMontagePlan.timeline.find(row => row.sceneNumber === segment.sceneNumber);
+    const job = confirmed.audioJobs[index];
+    assert.equal(segment.startSeconds, adjusted.adjustedAudioStartSeconds);
+    assert.equal(segment.endSeconds, adjusted.adjustedAudioEndSeconds);
+    assert.ok(segment.startSeconds >= scene.startSeconds && segment.endSeconds <= scene.endSeconds);
+    assert.equal(job.startSeconds, segment.startSeconds);
+    assert.equal(job.endSeconds, segment.endSeconds);
+    assert.equal(job.voiceMapping.voice, getVoiceMapping(segment.voiceId).voice);
+    if (segment.voiceId === girl) {
+      assert.ok(segment.voiceConfig);
+      assert.deepEqual(segment.voiceConfig, getVoiceConfig(girl));
+      assert.equal(job.voiceMapping.voice, "shimmer");
+    }
+  }
   assert.deepEqual(state.rows, original.map((row, index) => ({
     ...row, duration_seconds: [7, 6, 19, 15, 20][index],
   })));

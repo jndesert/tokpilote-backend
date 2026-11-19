@@ -41,6 +41,14 @@ const VOICE_CONFIG = {
     pace: "naturel",
     style: "enthousiaste"
   },
+  petite_fille_sur_un_balcon: {
+    character: "Petite fille sur un balcon",
+    gender: "feminine",
+    ageStyle: "enfant",
+    tone: "claire et expressive",
+    pace: "vif",
+    style: "inquiète lors de l’alerte"
+  },
 
   coach: {
     character: "Coach",

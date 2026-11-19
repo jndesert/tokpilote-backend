@@ -26,6 +26,11 @@ const VOICE_MAPPING = {
     voice: "shimmer",
     style: "joyeuse et naturelle"
   },
+  petite_fille_sur_un_balcon: {
+    character: "Petite fille sur un balcon",
+    voice: "shimmer",
+    style: "claire, vive et expressive, inquiète lors de l’alerte"
+  },
   coach: {
     character: "Coach",
     voice: "coral",
