@@ -11,8 +11,11 @@ const dashboard = fs.readFileSync(path.join(__dirname, "dashboard.html"), "utf8"
 const production = "https://videapilot-api.onrender.com";
 const staging = "https://videapilot-staging.onrender.com";
 const stagingHost = new URL(staging).host;
-const route = server.match(/^app\.post\("\/api\/ai\/complete-script",[\s\S]*?^\}\);/m)?.[0];
-assert.ok(route);
+const originGuard = server.match(/^function isAiScriptOriginAllowed\(req\) \{[\s\S]*?^\}/m)?.[0];
+// Run both real route prefixes through TikTok authorization only.
+const routes = [...server.matchAll(/^app\.post\("\/api\/ai\/(?:complete-script|prepare-scenes)",[\s\S]*?    return res\.status\(401\)\.json\([\s\S]*?^  \}/gm)];
+assert.ok(originGuard);
+assert.equal(routes.length, 2);
 
 async function statusFor({
   environment = "staging",
@@ -21,13 +24,12 @@ async function statusFor({
   host = stagingHost,
   secure = true,
 } = {}) {
-  let handler;
-  vm.runInNewContext(route, {
+  const handlers = new Map();
+  vm.runInNewContext([originGuard, ...routes.map(([route]) => route + "\n  unexpectedBusinessCall();\n});")].join("\n"), {
     URL,
-    app: { post: (_path, callback) => { handler = callback; } },
+    app: { post: (path, callback) => handlers.set(path, callback) },
     process: { env: { VIDEAPILOT_ENVIRONMENT: environment, VIDEO_RENDER_ALLOWED_ORIGIN: configuredOrigin } },
-    reserveAiGeneration: assert.fail,
-    getOpenAIClient: assert.fail,
+    unexpectedBusinessCall: () => assert.fail("Traitement métier inattendu"),
   });
   const headers = { Origin: origin, Host: host, "X-Forwarded-Host": stagingHost };
   const response = {
@@ -36,8 +38,12 @@ async function statusFor({
     json() { return this; },
   };
   // An accepted origin reaches the existing session check and stops there.
-  await handler({ secure, get: name => headers[name] ?? undefined }, response);
-  return response.code;
+  await handlers.get("/api/ai/complete-script")({ secure, get: name => headers[name] ?? undefined }, response);
+  const completeScriptStatus = response.code;
+  delete response.code;
+  await handlers.get("/api/ai/prepare-scenes")({ secure, get: name => headers[name] ?? undefined }, response);
+  assert.equal(response.code, completeScriptStatus, "prepare-scenes doit appliquer le même contrôle");
+  return completeScriptStatus;
 }
 
 test("production conserve son origine habituelle", async () => {
@@ -60,7 +66,7 @@ test("staging refuse les origines inconnues, absentes ou malformées", async () 
 
 test("staging refuse une configuration absente ou autre qu'une origine HTTPS exacte", async () => {
   for (const configuredOrigin of [
-    "", "not a URL", staging + "/", staging + "/dashboard", staging + "?x=1",
+    null, "", "not a URL", staging + "/", staging + "/dashboard", staging + "?x=1",
     staging + "#fragment", "https://user@" + stagingHost, "http://" + stagingHost,
   ]) {
     assert.equal(await statusFor({ configuredOrigin, origin: configuredOrigin }), 403);

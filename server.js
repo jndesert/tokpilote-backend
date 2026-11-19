@@ -964,13 +964,7 @@ Produis un script clair, créatif et directement exploitable.`,
   }
 });
 
-/**
- * Compléter un scénario interrompu.
- * Un appel OpenAI est effectué uniquement sur demande.
- */
-app.post("/api/ai/complete-script", async (req, res) => {
-  res.set("Cache-Control", "no-store");
-
+function isAiScriptOriginAllowed(req) {
   const origin = req.get("Origin");
   let originAllowed = origin === "https://videapilot-api.onrender.com";
   if (process.env.VIDEAPILOT_ENVIRONMENT === "staging") {
@@ -990,7 +984,17 @@ app.post("/api/ai/complete-script", async (req, res) => {
       req.get("Host") === stagingOrigin.host;
   }
 
-  if (!originAllowed) {
+  return originAllowed;
+}
+
+/**
+ * Compléter un scénario interrompu.
+ * Un appel OpenAI est effectué uniquement sur demande.
+ */
+app.post("/api/ai/complete-script", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  if (!isAiScriptOriginAllowed(req)) {
     return res.status(403).json({
       message: "Origine non autorisée."
     });
@@ -1579,7 +1583,7 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
   res.set("Cache-Control", "no-store");
 
   // Vérifier l'origine
-  if (req.get("Origin") !== "https://videapilot-api.onrender.com") {
+  if (!isAiScriptOriginAllowed(req)) {
     return res.status(403).json({
       message: "Origine non autorisée."
     });
