@@ -2374,6 +2374,14 @@ const audioTestPreview = {
         error.message
       );
 
+      if (error.message === "SCENE_CONTENT_CHANGED_REVIEW_REQUIRED") {
+        return res.status(409).json({
+          success: false,
+          error: "SCENE_CONTENT_CHANGED_REVIEW_REQUIRED",
+          message: "Les scènes existantes doivent être validées avant toute modification."
+        });
+      }
+
       return res.status(503).json({
         success: false,
         error: "SCENE_SAVE_UNAVAILABLE",

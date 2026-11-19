@@ -7,6 +7,8 @@ const test = require("node:test");
 const vm = require("node:vm");
 const { randomUUID } = require("node:crypto");
 const { getVoiceConfig } = require("./voice-config");
+const { preserveSceneIdentities } = require("./video-scene-identity");
+const { synchronizeProjectScenes } = require("./video-scene-sync");
 
 // Visible staging dashboard text supplied by the user.
 const script = `**Titre : Léo, le petit super-héros**
@@ -55,25 +57,32 @@ const source = fs.readFileSync(path.join(__dirname, "server.js"), "utf8");
 const start = source.indexOf('app.post("/api/ai/prepare-scenes"');
 const end = source.indexOf('app.get("/api/videos"', start);
 assert.ok(start >= 0 && end > start);
-let handler;
-// Run the route in memory with no projectId and no audio or video adapters.
-vm.runInNewContext(source.slice(start, end), {
-  app: { post: (_path, callback) => { handler = callback; } },
-  isAiScriptOriginAllowed: () => true,
-  randomUUID,
-  getVoiceConfig,
-  prepareVideoMontage: () => [],
-  prepareAudioJobs: () => [],
-  AUDIO_ENGINE_CONFIG: {},
-  AUDIO_SAFETY_CONFIG: {},
-  TTS_CONFIG: {},
-  assertAudioGenerationAllowed() {},
-  prepareTtsRequest() {},
-});
+// Run the route in memory without opening connections or invoking media adapters.
+function createHandler(pool) {
+  let handler;
+  vm.runInNewContext(source.slice(start, end), {
+    app: { post: (_path, callback) => { handler = callback; } },
+    isAiScriptOriginAllowed: () => true,
+    randomUUID,
+    getVoiceConfig,
+    prepareVideoMontage: () => [],
+    prepareAudioJobs: () => [],
+    AUDIO_ENGINE_CONFIG: {},
+    AUDIO_SAFETY_CONFIG: {},
+    TTS_CONFIG: {},
+    assertAudioGenerationAllowed() {},
+    prepareTtsRequest() {},
+    preserveSceneIdentities,
+    synchronizeProjectScenes,
+    pool,
+    console: { error() {} },
+  });
+  return handler;
+}
 
 async function prepare(script) {
   let result;
-  await handler({ session: { tiktokUser: { openId: "test" } }, body: { script } }, {
+  await createHandler()({ session: { tiktokUser: { openId: "test" } }, body: { script } }, {
     set() {},
     json(value) { result = value; },
   });
@@ -94,6 +103,71 @@ test("scénario de Léo : cinq scènes et bornes déclarées jusqu'à 30 s", asy
     ["Léo", "Narrateur"], ["Léo", "Narrateur"],
   ]);
   assert.deepEqual(scenes[2].voiceProfiles.map(p => p.voiceId), ["petite_fille_sur_un_balcon", "leo", "narrateur"]);
+});
+
+async function attemptSave(existingScenes, { owner = true } = {}) {
+  const operations = [];
+  const projectRows = owner ? [{ id: 42, mvp_local_images: "false" }] : [];
+  const client = {
+    async query(sql, parameters) {
+      if (sql.includes("FOR UPDATE")) {
+        assert.deepEqual(Array.from(parameters), ["42", "test"]);
+        operations.push("lock");
+        return { rows: projectRows };
+      }
+      if (sql.includes("FROM video_project_scenes")) {
+        operations.push("read scenes");
+        return { rows: existingScenes };
+      }
+      if (sql.includes("INSERT INTO video_project_scenes")) {
+        operations.push("insert");
+        throw Object.assign(new Error("SQL simulée"), { code: "42501" });
+      }
+      operations.push(sql);
+    },
+    release() { operations.push("release"); },
+  };
+  const pool = {
+    async query(sql, parameters) {
+      assert.match(sql, /p\.user_id = \$2/);
+      assert.deepEqual(Array.from(parameters), ["42", "test"]);
+      operations.push("lookup");
+      return { rows: projectRows };
+    },
+    async connect() { operations.push("connect"); return client; },
+  };
+  let statusCode;
+  let body;
+  await createHandler(pool)({ session: { tiktokUser: { openId: "test" } }, body: { script, projectId: "42" } }, {
+    set() {},
+    status(value) { statusCode = value; return this; },
+    json(value) { body = value; },
+  });
+  return { statusCode, body, operations };
+}
+
+test("un conflit de contenu retourne 409 et annule la transaction avant toute écriture", async () => {
+  const result = await attemptSave([{ scene_number: 1, title: "Ancien titre", visual_prompt: "Ancien prompt" }]);
+  assert.equal(result.statusCode, 409);
+  assert.equal(result.body.success, false);
+  assert.equal(result.body.error, "SCENE_CONTENT_CHANGED_REVIEW_REQUIRED");
+  assert.match(result.body.message, /validées avant toute modification/);
+  assert.deepEqual(result.operations, ["lookup", "connect", "BEGIN", "lock", "read scenes", "ROLLBACK", "release"]);
+});
+
+test("une erreur SQL retourne toujours 503 et annule la transaction", async () => {
+  const result = await attemptSave([]);
+  assert.equal(result.statusCode, 503);
+  assert.equal(result.body.success, false);
+  assert.equal(result.body.error, "SCENE_SAVE_UNAVAILABLE");
+  assert.deepEqual(result.operations, ["lookup", "connect", "BEGIN", "lock", "read scenes", "read scenes", "insert", "ROLLBACK", "release"]);
+});
+
+test("un projet qui n'appartient pas à la session est refusé avant la transaction", async () => {
+  const result = await attemptSave([], { owner: false });
+  assert.equal(result.statusCode, 404);
+  assert.equal(result.body.error, "PROJECT_NOT_FOUND");
+  assert.deepEqual(result.operations, ["lookup"]);
 });
 
 test("formats historiques, exclusion du visuel et diagnostic d'interruption", async () => {
