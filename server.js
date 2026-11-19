@@ -25,7 +25,7 @@ const {
 const { randomUUID } = require("node:crypto");
 const { synchronizeProjectScenes } = require("./video-scene-sync");
 const { preserveSceneIdentities } = require("./video-scene-identity");
-const { buildSceneReconciliation, matchesSceneFingerprint, sceneSnapshotSql } = require("./video-scene-reconciliation");
+const { buildSceneReconciliation, matchesSceneFingerprint, sceneSnapshotSql, updateReconciledDurations } = require("./video-scene-reconciliation");
 const { registerVideoRenderRoute, localRenderAuthorized, productionRenderAuthorized } = require("./video-render-route");
 const { registerVideoMvpRoutes } = require("./video-mvp-route");
 const { registerAdminTempUploadRoute } = require("./video-admin-temp-upload-route");
@@ -1599,8 +1599,9 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
 
   // Récupérer le scénario et l'identifiant du projet vidéo.
   const { script, projectId, reconciliation, fingerprint } = req.body || {};
-  const previewReconciliation = reconciliation === "preview";
-  const confirmReconciliation = reconciliation === "confirm";
+  const durationsOnly = reconciliation === "duration-preview" || reconciliation === "duration-confirm";
+  const previewReconciliation = reconciliation === "preview" || reconciliation === "duration-preview";
+  const confirmReconciliation = reconciliation === "confirm" || reconciliation === "duration-confirm";
   const userId = req.session.tiktokUser.openId;
 
   if (reconciliation !== undefined) {
@@ -2319,14 +2320,23 @@ const audioTestPreview = {
     .filter(scene => scene.overflowSeconds > 0)
     .map(({ sceneNumber, availableSeconds, estimatedAudioSeconds, overflowSeconds }) =>
       ({ sceneNumber, availableSeconds, estimatedAudioSeconds, overflowSeconds }));
+  const durationProposal = durationsOnly ? adjustedTimeline.map((timing, index) => ({
+    ...timing,
+    estimatedAudioSeconds: audioTimingDiagnostic[index].estimatedAudioSeconds,
+    recommendedDurationSeconds: audioTimingDiagnostic[index].recommendedDurationSeconds,
+  })) : undefined;
+  const missingVoices = durationsOnly ? [...new Map(audioJobs
+    .filter(job => !job.voiceMapping?.voice?.trim())
+    .map(job => [job.voiceId, { voiceId: job.voiceId, character: job.character }])).values()] : undefined;
 
   if (previewReconciliation) {
     try {
       const existing = await pool.query(sceneSnapshotSql, [projectId, userId, projectResultScript]);
       const { differences, fingerprint } = buildSceneReconciliation({
-        projectId, owner: userId, script: projectResultScript, scenes, existing: existing.rows, secret: process.env.SESSION_SECRET,
+        projectId, owner: userId, script: projectResultScript, scenes, existing: existing.rows,
+        secret: process.env.SESSION_SECRET, durationProposal,
       });
-      return res.json({ success: true, differences, fingerprint, estimatedAudioOverruns });
+      return res.json({ success: true, differences, fingerprint, estimatedAudioOverruns, durationProposal, missingVoices });
     } catch (error) {
       if (error.message === "SCENE_RECONCILIATION_NUMBER_MISMATCH") {
         return res.status(409).json({ success: false, error: error.message });
@@ -2368,7 +2378,7 @@ const audioTestPreview = {
       // Charger les scenes existantes sous le verrou du projet.
       const existingScenesResult = await client.query(
         confirmReconciliation ? sceneSnapshotSql + " FOR UPDATE" : `
-        SELECT scene_id, scene_number, title, visual_prompt
+        SELECT scene_id, scene_number, title, visual_prompt, duration_seconds
         FROM video_project_scenes
         WHERE project_id = $1
         ORDER BY scene_number ASC
@@ -2378,34 +2388,51 @@ const audioTestPreview = {
 
       // Reutiliser les UUID lorsque le contenu est identique.
       let preservedScenes;
+      let approvedDifferences;
       if (confirmReconciliation) {
         const proposal = buildSceneReconciliation({
           projectId, owner: userId, script: lockedProject.rows[0].script, scenes,
-          existing: existingScenesResult.rows, secret: process.env.SESSION_SECRET,
+          existing: existingScenesResult.rows, secret: process.env.SESSION_SECRET, durationProposal,
         });
         if (!matchesSceneFingerprint(proposal.fingerprint, fingerprint)) {
           throw new Error("SCENE_RECONCILIATION_STALE");
         }
         preservedScenes = proposal.preservedScenes;
+        approvedDifferences = proposal.differences;
       } else {
         preservedScenes = preserveSceneIdentities(scenes, existingScenesResult.rows);
+        if (process.env.VIDEAPILOT_ENVIRONMENT === "staging") {
+          // A new preparation must not shrink durations already saved on staging.
+          const savedDurations = new Map(existingScenesResult.rows.map(row => [row.scene_id, row.duration_seconds]));
+          if (preservedScenes.some(scene => savedDurations.get(scene.sceneId) > scene.durationSeconds)) {
+            let startSeconds = 0;
+            for (const scene of preservedScenes) {
+              scene.durationSeconds = Math.max(scene.durationSeconds, savedDurations.get(scene.sceneId) || 0);
+              scene.startSeconds = startSeconds;
+              scene.endSeconds = startSeconds + scene.durationSeconds;
+              startSeconds = scene.endSeconds;
+            }
+          }
+        }
       }
 
       videoMontagePlan = prepareVideoMontage(preservedScenes);
 
       // Synchroniser avec les identifiants prepares.
       // Ne pas modifier les scenes de la reponse avant COMMIT.
-      await synchronizeProjectScenes(
-        client,
-        projectId,
-        preservedScenes
-      );
+      if (durationsOnly) {
+        await updateReconciledDurations(client, projectId, approvedDifferences);
+      } else {
+        await synchronizeProjectScenes(client, projectId, preservedScenes);
+      }
 
       await client.query("COMMIT");
 
       // Publier les identifiants uniquement apres validation.
       for (let index = 0; index < scenes.length; index++) {
-        scenes[index].sceneId = preservedScenes[index].sceneId;
+        const { sceneId, startSeconds, endSeconds, durationSeconds, title, visualPrompt } = preservedScenes[index];
+        Object.assign(scenes[index], { sceneId, startSeconds, endSeconds, durationSeconds },
+          durationsOnly ? { title, visualPrompt } : {});
       }
     } catch (error) {
 
@@ -2460,6 +2487,7 @@ const audioTestPreview = {
     success: true,
     scenes,
     ...(confirmReconciliation ? { estimatedAudioOverruns, audioReuseAllowed: false } : {}),
+    ...(durationsOnly ? { durationProposal, missingVoices, durationsAreEstimated: true } : {}),
     videoMontagePlan,
     voiceCatalog,
     audioSegments,

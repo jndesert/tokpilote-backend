@@ -9,8 +9,9 @@ const { randomUUID } = require("node:crypto");
 const { getVoiceConfig } = require("./voice-config");
 const { preserveSceneIdentities } = require("./video-scene-identity");
 const { synchronizeProjectScenes } = require("./video-scene-sync");
-const { buildSceneReconciliation, matchesSceneFingerprint, sceneSnapshotSql } = require("./video-scene-reconciliation");
+const { buildSceneReconciliation, matchesSceneFingerprint, sceneSnapshotSql, updateReconciledDurations } = require("./video-scene-reconciliation");
 const { prepareVideoMontage } = require("./video-engine");
+const { prepareAudioJobs } = require("./audio-engine");
 
 // Visible staging dashboard text supplied by the user.
 const script = `**Titre : Léo, le petit super-héros**
@@ -68,7 +69,7 @@ function createHandler(pool, environment = "staging", originAllowed = true) {
     randomUUID,
     getVoiceConfig,
     prepareVideoMontage,
-    prepareAudioJobs: () => [],
+    prepareAudioJobs,
     AUDIO_ENGINE_CONFIG: {},
     AUDIO_SAFETY_CONFIG: {},
     TTS_CONFIG: {},
@@ -79,6 +80,7 @@ function createHandler(pool, environment = "staging", originAllowed = true) {
     buildSceneReconciliation,
     matchesSceneFingerprint,
     sceneSnapshotSql,
+    updateReconciledDurations,
     process: { env: { VIDEAPILOT_ENVIRONMENT: environment, SESSION_SECRET: "local-test-only" } },
     pool,
     console: { error() {} },
@@ -217,7 +219,10 @@ function reconciliationFixture() {
         operations.push("lock project");
         return project(params);
       }
-      assert.match(sql, /UPDATE video_project_scenes\s+SET title = \$3,\s+visual_prompt = \$4,\s+duration_seconds = \$5\s+WHERE project_id = \$1\s+AND scene_id = \$2/);
+      const durationOnly = /SET duration_seconds = \$3/.test(sql);
+      assert.match(sql, durationOnly
+        ? /UPDATE video_project_scenes\s+SET duration_seconds = \$3\s+WHERE project_id = \$1 AND scene_id = \$2 AND scene_number = \$4/
+        : /UPDATE video_project_scenes\s+SET title = \$3,\s+visual_prompt = \$4,\s+duration_seconds = \$5\s+WHERE project_id = \$1\s+AND scene_id = \$2/);
       operations.push("update");
       if (state.failUpdate && operations.filter(operation => operation === "update").length === 2) {
         throw new Error("Échec SQL simulé");
@@ -225,7 +230,13 @@ function reconciliationFixture() {
       assert.equal(params[0], "42");
       const row = workingRows.find(row => row.scene_id === params[1]);
       assert.ok(row);
-      [row.title, row.visual_prompt, row.duration_seconds] = params.slice(2);
+      if (durationOnly) {
+        assert.equal(params[3], row.scene_number);
+        row.duration_seconds = params[2];
+      } else {
+        [row.title, row.visual_prompt, row.duration_seconds] = params.slice(2);
+      }
+      return { rowCount: 1 };
     },
     release() { operations.push("release"); },
   };
@@ -333,4 +344,61 @@ test("erreur après une première mise à jour : rollback intégral de la confir
   assert.deepEqual(state.operations.slice(-4), ["update", "update", "ROLLBACK", "release"]);
   assert.ok(!state.operations.includes("COMMIT"));
   assert.deepEqual(state.rows, before);
+});
+
+test("durées audio : aperçu sans écriture et confirmation limitée aux durées", async () => {
+  const state = reconciliationFixture();
+  const ordinary = await state.request("preview");
+  await state.request("confirm", { fingerprint: ordinary.fingerprint });
+  const original = structuredClone(state.rows);
+  state.operations.length = 0;
+  const preview = await state.request("duration-preview");
+  assert.equal(preview.status, 200);
+  assert.deepEqual(state.operations, ["lookup", "preview scenes"]);
+  assert.deepEqual(state.rows, original);
+  assert.deepEqual(preview.differences.map(scene => scene.before.durationSeconds), [4, 6, 8, 8, 4]);
+  assert.deepEqual(preview.differences.map(scene => scene.after.durationSeconds), [7, 6, 19, 15, 20]);
+  assert.deepEqual(preview.missingVoices, [{ voiceId: "petite_fille_sur_un_balcon", character: "Petite fille sur un balcon" }]);
+  assert.equal((await state.request("duration-confirm")).status, 400);
+  const confirmed = await state.request("duration-confirm", { fingerprint: preview.fingerprint });
+  assert.equal(confirmed.status, 200);
+  assert.equal(confirmed.durationsAreEstimated, true);
+  assert.deepEqual(confirmed.videoMontagePlan.timeline.map(scene => [scene.startSeconds, scene.endSeconds]),
+    [[0, 7], [7, 13], [13, 32], [32, 47], [47, 67]]);
+  assert.equal(confirmed.videoMontagePlan.videoGenerated, false);
+  assert.equal(confirmed.videoMontagePlan.audioGenerated, false);
+  assert.ok(confirmed.audioJobs.every(job => !job.generated));
+  assert.deepEqual(state.rows, original.map((row, index) => ({
+    ...row, duration_seconds: [7, 6, 19, 15, 20][index],
+  })));
+  assert.equal(state.operations.filter(operation => operation === "update").length, 4);
+  assert.equal((await state.request(undefined)).videoMontagePlan.totalDurationSeconds, 67);
+});
+
+test("confirmation des durées : empreinte cloisonnée, refus d'accès et concurrence", async () => {
+  const state = reconciliationFixture();
+  for (const mode of ["duration-preview", "duration-confirm"]) {
+    const fingerprint = "0".repeat(64);
+    assert.equal((await state.request(mode, { fingerprint, owner: null })).status, 401);
+    assert.equal((await state.request(mode, { fingerprint, originAllowed: false })).status, 403);
+    assert.equal((await state.request(mode, { fingerprint, owner: "autre" })).status, 404);
+  }
+  const old = await state.request("preview");
+  assert.equal((await state.request("duration-confirm", { fingerprint: old.fingerprint })).status, 409);
+  const preview = await state.request("duration-preview");
+  state.rows[0].duration_seconds = 3;
+  assert.equal((await state.request("duration-confirm", { fingerprint: preview.fingerprint })).status, 409);
+  assert.deepEqual(state.operations.slice(-2), ["ROLLBACK", "release"]);
+  assert.ok(!state.operations.includes("update") && !state.operations.includes("COMMIT"));
+});
+
+test("une erreur pendant la confirmation des durées annule toutes les écritures", async () => {
+  const state = reconciliationFixture();
+  const original = structuredClone(state.rows);
+  const preview = await state.request("duration-preview");
+  state.failUpdate = true;
+  assert.equal((await state.request("duration-confirm", { fingerprint: preview.fingerprint })).status, 503);
+  assert.deepEqual(state.operations.slice(-4), ["update", "update", "ROLLBACK", "release"]);
+  assert.ok(!state.operations.includes("COMMIT"));
+  assert.deepEqual(state.rows, original);
 });

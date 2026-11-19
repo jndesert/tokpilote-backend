@@ -640,6 +640,7 @@ loadVideoProjects();
   <button type="button" id="test-scenes">
   🎬 Préparer les scènes de ma vidéo
 </button>
+  <button type="button" id="review-audio-durations">Examiner les durées audio estimées</button>
   
 <button
   type="button"
@@ -1442,7 +1443,8 @@ async function reviewSceneDifferences(preview) {
   dialog.setAttribute("aria-label", "Réconciliation des scènes");
   dialog.style.cssText = "max-width:min(760px,90vw);max-height:80vh;overflow:auto;";
   const heading = document.createElement("h3");
-  heading.textContent = "Vérifier les changements de scènes";
+  const durationsOnly = Boolean(preview.durationProposal);
+  heading.textContent = durationsOnly ? "Vérifier les durées proposées" : "Vérifier les changements de scènes";
   dialog.append(heading);
 
   for (const scene of preview.differences) {
@@ -1451,7 +1453,16 @@ async function reviewSceneDifferences(preview) {
     label.textContent = `Scène ${scene.number} · ${scene.before.durationSeconds ?? "non définie"} → ${scene.after.durationSeconds} s · ${scene.hasImage ? "image liée" : "sans image liée"}`;
     const comparison = document.createElement("pre");
     comparison.style.whiteSpace = "pre-wrap";
-    comparison.textContent = `Avant\n${scene.before.title}\n${scene.before.visualPrompt}\n\nAprès\n${scene.after.title}\n${scene.after.visualPrompt}`;
+    if (durationsOnly) {
+      const timing = preview.durationProposal.find(row => row.sceneNumber === scene.number);
+      comparison.textContent = `${scene.before.title}\nEnregistrée : ${scene.before.durationSeconds ?? "non définie"} s\nAudio estimé : ${timing.estimatedAudioSeconds} s\nRecommandée : ${timing.recommendedDurationSeconds} s\nProposée : ${scene.after.durationSeconds} s`;
+      if (scene.before.durationSeconds !== null && timing.estimatedAudioSeconds > scene.before.durationSeconds) {
+        comparison.textContent += "\nL’audio estimé dépasse la durée enregistrée.";
+      }
+      details.open = true;
+    } else {
+      comparison.textContent = `Avant\n${scene.before.title}\n${scene.before.visualPrompt}\n\nAprès\n${scene.after.title}\n${scene.after.visualPrompt}`;
+    }
     details.append(label, comparison);
     if (scene.imageMayNotMatch) {
       const warning = document.createElement("p");
@@ -1464,10 +1475,18 @@ async function reviewSceneDifferences(preview) {
   const audio = document.createElement("p");
   const overruns = preview.estimatedAudioOverruns
     .map(scene => `scène ${scene.sceneNumber} (+${scene.overflowSeconds} s)`);
-  audio.textContent = (overruns.length ? `Durée audio estimée supérieure à la durée déclarée pour ${overruns.join(", ")}. ` : "") +
-    "Le nouveau plan ne réutilise aucun ancien audio.";
+  if (durationsOnly) {
+    const total = preview.durationProposal.at(-1).adjustedEndSeconds;
+    const voices = preview.missingVoices.map(voice => voice.character || voice.voiceId);
+    audio.textContent = `Total proposé : ${total} s, provisoire jusqu’à mesure des fichiers audio réels.` +
+      (voices.length ? ` Voix de synthèse manquantes : ${voices.join(", ")}.` : "") +
+      " La confirmation ne lance aucune génération.";
+  } else {
+    audio.textContent = (overruns.length ? `Durée audio estimée supérieure à la durée déclarée pour ${overruns.join(", ")}. ` : "") +
+      "Le nouveau plan ne réutilise aucun ancien audio.";
+  }
   dialog.append(audio);
-  for (const [value, label] of [["cancel", "Annuler"], ["confirm", "Confirmer la mise à jour des scènes"]]) {
+  for (const [value, label] of [["cancel", "Annuler"], ["confirm", durationsOnly ? "Confirmer les durées proposées" : "Confirmer la mise à jour des scènes"]]) {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = label;
@@ -1487,7 +1506,8 @@ async function reviewSceneDifferences(preview) {
   }
 }
 
-document.getElementById("test-scenes").addEventListener("click", async () => {
+async function prepareProjectScenes(event) {
+  const durationsOnly = event.currentTarget.id === "review-audio-durations";
   const result = document.getElementById("test-scenes-result");
 
   // Récupérer le scénario présent dans le formulaire vidéo
@@ -1563,6 +1583,31 @@ document.getElementById("test-scenes").addEventListener("click", async () => {
   });
 
   try {
+    if (durationsOnly) {
+      const previewResponse = await prepareScenes({ reconciliation: "duration-preview" });
+      const preview = await previewResponse.json();
+      if (!isStillCurrent()) return;
+      if (!previewResponse.ok) {
+        result.textContent = preview.error === "SCENE_RECONCILIATION_NUMBER_MISMATCH"
+          ? "Les numéros des scènes enregistrées et proposées doivent correspondre."
+          : "Aperçu indisponible. Vérifiez que les scènes et le scénario sont enregistrés sur staging.";
+        return;
+      }
+      const approved = await reviewSceneDifferences(preview);
+      if (!isStillCurrent()) return;
+      if (!approved) {
+        result.textContent = "Aucune durée modifiée.";
+        return;
+      }
+      const response = await prepareScenes({ reconciliation: "duration-confirm", fingerprint: preview.fingerprint });
+      const data = await response.json();
+      if (!isStillCurrent()) return;
+      result.textContent = response.ok
+        ? `Durées enregistrées. Montage provisoire : ${data.videoMontagePlan.totalDurationSeconds} s, à vérifier avec les fichiers audio réels.\n` + JSON.stringify(data, null, 2)
+        : data.message || "Confirmation refusée. Préparez un nouvel aperçu.";
+      return;
+    }
+
     let response = await prepareScenes();
     let data = await response.json();
     if (!isStillCurrent()) {
@@ -1613,7 +1658,10 @@ document.getElementById("test-scenes").addEventListener("click", async () => {
   } finally {
     requestGuard.finish(requestToken);
   }
-});
+}
+
+document.getElementById("test-scenes").addEventListener("click", prepareProjectScenes);
+document.getElementById("review-audio-durations").addEventListener("click", prepareProjectScenes);
 </script>
  
 <script>
