@@ -2,11 +2,13 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { createHash } = require("node:crypto");
 const { getVoiceMapping } = require("./voice-mapping");
 
 const EPSILON = 1e-9;
 const validTime = value => Number.isFinite(value) && value >= 0;
 const validId = value => typeof value === "string" && value.trim().length > 0;
+const fileIdentity = stats => [stats.dev, stats.ino, stats.size, stats.mtimeNs, stats.ctimeNs].join(":");
 
 // The caller supplies the real duration probe. Simulation never touches the filesystem.
 function preflightAudioReplicas({
@@ -88,6 +90,7 @@ function preflightAudioReplicas({
   }
 
   const usedFiles = new Set();
+  const realFiles = new Map();
   for (const [segmentId, segment] of planned) {
     const { sceneNumber, character, voiceId, startSeconds, endSeconds } = segment;
     const context = { segmentId, sceneNumber };
@@ -118,12 +121,17 @@ function preflightAudioReplicas({
         const stats = fs.lstatSync(file.filePath, { bigint: true });
         if (!stats.isFile() || stats.size === 0n) throw new Error();
         fileKey = stats.ino ? `${stats.dev}:${stats.ino}` : fs.realpathSync(file.filePath);
+        realFiles.set(segmentId, fileIdentity(stats));
       } catch (error) {
         addError(error.code === "ENOENT" ? "MISSING_AUDIO_FILE" : "INVALID_AUDIO_FILE", context);
         continue;
       }
       try {
         duration = measureDurationSeconds(file.filePath);
+        if (fileIdentity(fs.lstatSync(file.filePath, { bigint: true })) !== realFiles.get(segmentId)) {
+          addError("AUDIO_FILE_CHANGED_DURING_PROBE", context);
+          continue;
+        }
       } catch {
         addError("DURATION_NOT_MEASURABLE", context);
         continue;
@@ -157,7 +165,19 @@ function preflightAudioReplicas({
       gaps.push({ ...context, startSeconds: previous.actualEndSeconds, endSeconds: next.startSeconds });
     }
   }
-  if (errors.length === 0) report.status = "OK";
+  if (errors.length === 0) {
+    try {
+      // Bind the complete plan (including text and voice metadata) and the inventory to the measurements.
+      report.fingerprint = createHash("sha256").update(JSON.stringify([
+        "audio-preflight-v1", mode, expectedDurationSeconds, scenes, audioGenerationPlan,
+        [...inventory.values()].sort((a, b) => a.segmentId < b.segmentId ? -1 : a.segmentId > b.segmentId ? 1 : 0),
+        segments.map(segment => [segment.segmentId, segment.durationSeconds, realFiles.get(segment.segmentId)]),
+      ])).digest("hex");
+      report.status = "OK";
+    } catch {
+      addError("UNSERIALIZABLE_PREFLIGHT_INPUT");
+    }
+  }
   return report;
 }
 
