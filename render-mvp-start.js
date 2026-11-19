@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { Pool } = require("pg");
+const { postgresConnectionOptions } = require("./postgres-tls");
 
 async function start() {
   if (process.env.VIDEO_MVP_ENABLED !== "true") {
@@ -35,8 +36,7 @@ async function start() {
   if (!/\blibx264\s/.test(encoders) || !/\baac\s/.test(encoders)) throw new Error("MVP_ENCODERS_UNAVAILABLE");
 
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: true },
+    ...postgresConnectionOptions(),
     connectionTimeoutMillis: 7000
   });
   try {

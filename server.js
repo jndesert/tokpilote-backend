@@ -33,6 +33,7 @@ const express = require("express");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
 const { Pool } = require("pg");
+const { postgresConnectionOptions } = require("./postgres-tls");
 // SDK OpenAI pour la génération de scripts vidéo
 const OpenAI = require("openai");
 const crypto = require("node:crypto");
@@ -92,12 +93,9 @@ const PORT = process.env.PORT || 3000;
 
 // Connexion à la base PostgreSQL de VidéaPilot
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  ...postgresConnectionOptions(),
   // VIDEAPILOT_LOCAL_READONLY_V1 : toutes les transactions PostgreSQL sont en lecture seule en mode local protege.
   options: process.env.VIDEAPILOT_LOCAL_READONLY === "true" ? "-c default_transaction_read_only=on" : undefined,
-  ssl: process.env.DATABASE_URL
-    ? { rejectUnauthorized: true }
-    : undefined,
 });
 
 // Création de la table des projets vidéo
