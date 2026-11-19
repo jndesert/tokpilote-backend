@@ -25,6 +25,7 @@ const {
 const { randomUUID } = require("node:crypto");
 const { synchronizeProjectScenes } = require("./video-scene-sync");
 const { preserveSceneIdentities } = require("./video-scene-identity");
+const { buildSceneReconciliation, matchesSceneFingerprint, sceneSnapshotSql } = require("./video-scene-reconciliation");
 const { registerVideoRenderRoute, localRenderAuthorized, productionRenderAuthorized } = require("./video-render-route");
 const { registerVideoMvpRoutes } = require("./video-mvp-route");
 const { registerAdminTempUploadRoute } = require("./video-admin-temp-upload-route");
@@ -1597,7 +1598,20 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
   }
 
   // Récupérer le scénario et l'identifiant du projet vidéo.
-  const { script, projectId } = req.body || {};
+  const { script, projectId, reconciliation, fingerprint } = req.body || {};
+  const previewReconciliation = reconciliation === "preview";
+  const confirmReconciliation = reconciliation === "confirm";
+  const userId = req.session.tiktokUser.openId;
+
+  if (reconciliation !== undefined) {
+    if (process.env.VIDEAPILOT_ENVIRONMENT !== "staging") {
+      return res.status(403).json({ success: false, error: "SCENE_RECONCILIATION_NOT_ENABLED" });
+    }
+    if (projectId === undefined || (!previewReconciliation && !confirmReconciliation) ||
+        (confirmReconciliation && (typeof fingerprint !== "string" || !/^[a-f0-9]{64}$/.test(fingerprint)))) {
+      return res.status(400).json({ success: false, error: "INVALID_SCENE_RECONCILIATION" });
+    }
+  }
 
   if (
     typeof script !== "string" ||
@@ -1621,16 +1635,15 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
     });
   }
 
+  let projectResultScript;
   // Vérifier que le projet appartient à l'utilisateur connecté.
   if (projectId !== undefined) {
-    const userId = req.session.tiktokUser.openId;
-
     let projectResult;
 
     try {
       projectResult = await pool.query(
         `
-        SELECT p.id, to_jsonb(p)->>'mvp_local_images' AS mvp_local_images
+        SELECT p.id, p.script, to_jsonb(p)->>'mvp_local_images' AS mvp_local_images
         FROM video_projects p
         WHERE p.id = $1 AND p.user_id = $2
         `,
@@ -1661,6 +1674,10 @@ app.post("/api/ai/prepare-scenes", async (req, res) => {
         error: "MANUAL_PROJECT_SCENES",
         message: "Les scènes de ce projet se préparent dans le montage manuel."
       });
+    }
+    projectResultScript = projectResult.rows[0].script;
+    if (reconciliation !== undefined && projectResultScript?.trim() !== script.trim()) {
+      return res.status(409).json({ success: false, error: "SCENE_RECONCILIATION_STALE" });
     }
   }
 
@@ -1873,8 +1890,9 @@ for (const scene of scenes) {
 }
   // Préparation locale du plan de montage vidéo.
   // Aucun fichier vidéo ou audio n'est généré.
-  const videoMontagePlan = prepareVideoMontage(scenes);
+  let videoMontagePlan = prepareVideoMontage(scenes);
 
+  const audioPlanPrefix = confirmReconciliation ? `reconciled_${randomUUID()}_` : "";
   const audioSegments = scenes.flatMap(scene => {
     const dialogues = scene.dialogues || [];
     const sceneStart = scene.startSeconds;
@@ -1932,7 +1950,7 @@ for (const scene of scenes) {
 
         audioStatus: "pending",
         audioFileName:
-          `scene_${scene.number}_dialogue_${index + 1}.mp3`
+          `${audioPlanPrefix}scene_${scene.number}_dialogue_${index + 1}.mp3`
       };
     });
   });
@@ -2297,6 +2315,27 @@ const audioTestPreview = {
   status: "preview_only"
 };
 
+  const estimatedAudioOverruns = audioTimingDiagnostic
+    .filter(scene => scene.overflowSeconds > 0)
+    .map(({ sceneNumber, availableSeconds, estimatedAudioSeconds, overflowSeconds }) =>
+      ({ sceneNumber, availableSeconds, estimatedAudioSeconds, overflowSeconds }));
+
+  if (previewReconciliation) {
+    try {
+      const existing = await pool.query(sceneSnapshotSql, [projectId, userId, projectResultScript]);
+      const { differences, fingerprint } = buildSceneReconciliation({
+        projectId, owner: userId, script: projectResultScript, scenes, existing: existing.rows, secret: process.env.SESSION_SECRET,
+      });
+      return res.json({ success: true, differences, fingerprint, estimatedAudioOverruns });
+    } catch (error) {
+      if (error.message === "SCENE_RECONCILIATION_NUMBER_MISMATCH") {
+        return res.status(409).json({ success: false, error: error.message });
+      }
+      console.error("Erreur aperçu de réconciliation des scènes :", error.message);
+      return res.status(503).json({ success: false, error: "SCENE_RECONCILIATION_PREVIEW_UNAVAILABLE" });
+    }
+  }
+
   // Enregistrer les scènes dans le projet vidéo de l'utilisateur.
   if (projectId !== undefined) {
   let client;
@@ -2306,11 +2345,9 @@ const audioTestPreview = {
     await client.query("BEGIN");
 
       // Verifier le proprietaire dans la transaction.
-      const userId = req.session.tiktokUser.openId;
-
       const lockedProject = await client.query(
         `
-        SELECT p.id, to_jsonb(p)->>'mvp_local_images' AS mvp_local_images
+        SELECT p.id, p.script, to_jsonb(p)->>'mvp_local_images' AS mvp_local_images
         FROM video_projects p
         WHERE p.id = $1 AND p.user_id = $2
         FOR UPDATE
@@ -2324,23 +2361,37 @@ const audioTestPreview = {
       if (lockedProject.rows[0].mvp_local_images === "true") {
         throw new Error("MANUAL_PROJECT_SCENES");
       }
+      if (confirmReconciliation && lockedProject.rows[0].script?.trim() !== script.trim()) {
+        throw new Error("SCENE_RECONCILIATION_STALE");
+      }
 
       // Charger les scenes existantes sous le verrou du projet.
       const existingScenesResult = await client.query(
-        `
+        confirmReconciliation ? sceneSnapshotSql + " FOR UPDATE" : `
         SELECT scene_id, scene_number, title, visual_prompt
         FROM video_project_scenes
         WHERE project_id = $1
         ORDER BY scene_number ASC
         `,
-        [projectId]
+        confirmReconciliation ? [projectId, userId, lockedProject.rows[0].script] : [projectId]
       );
 
       // Reutiliser les UUID lorsque le contenu est identique.
-      const preservedScenes = preserveSceneIdentities(
-        scenes,
-        existingScenesResult.rows
-      );
+      let preservedScenes;
+      if (confirmReconciliation) {
+        const proposal = buildSceneReconciliation({
+          projectId, owner: userId, script: lockedProject.rows[0].script, scenes,
+          existing: existingScenesResult.rows, secret: process.env.SESSION_SECRET,
+        });
+        if (!matchesSceneFingerprint(proposal.fingerprint, fingerprint)) {
+          throw new Error("SCENE_RECONCILIATION_STALE");
+        }
+        preservedScenes = proposal.preservedScenes;
+      } else {
+        preservedScenes = preserveSceneIdentities(scenes, existingScenesResult.rows);
+      }
+
+      videoMontagePlan = prepareVideoMontage(preservedScenes);
 
       // Synchroniser avec les identifiants prepares.
       // Ne pas modifier les scenes de la reponse avant COMMIT.
@@ -2378,7 +2429,18 @@ const audioTestPreview = {
         return res.status(409).json({
           success: false,
           error: "SCENE_CONTENT_CHANGED_REVIEW_REQUIRED",
+          ...(process.env.VIDEAPILOT_ENVIRONMENT === "staging" ? { reconciliationAvailable: true } : {}),
           message: "Les scènes existantes doivent être validées avant toute modification."
+        });
+      }
+      if (confirmReconciliation && [
+        "SCENE_RECONCILIATION_STALE", "SCENE_RECONCILIATION_NUMBER_MISMATCH",
+        "PROJECT_NOT_FOUND", "MANUAL_PROJECT_SCENES",
+      ].includes(error.message)) {
+        return res.status(409).json({
+          success: false,
+          error: "SCENE_RECONCILIATION_STALE",
+          message: "Le projet a changé. Préparez un nouvel aperçu avant de confirmer.",
         });
       }
 
@@ -2397,6 +2459,7 @@ const audioTestPreview = {
   return res.json({
     success: true,
     scenes,
+    ...(confirmReconciliation ? { estimatedAudioOverruns, audioReuseAllowed: false } : {}),
     videoMontagePlan,
     voiceCatalog,
     audioSegments,

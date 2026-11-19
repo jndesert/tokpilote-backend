@@ -1437,6 +1437,56 @@ loadVideoProjects();
 </script>
 
 <script>
+async function reviewSceneDifferences(preview) {
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-label", "Réconciliation des scènes");
+  dialog.style.cssText = "max-width:min(760px,90vw);max-height:80vh;overflow:auto;";
+  const heading = document.createElement("h3");
+  heading.textContent = "Vérifier les changements de scènes";
+  dialog.append(heading);
+
+  for (const scene of preview.differences) {
+    const details = document.createElement("details");
+    const label = document.createElement("summary");
+    label.textContent = `Scène ${scene.number} · ${scene.before.durationSeconds ?? "non définie"} → ${scene.after.durationSeconds} s · ${scene.hasImage ? "image liée" : "sans image liée"}`;
+    const comparison = document.createElement("pre");
+    comparison.style.whiteSpace = "pre-wrap";
+    comparison.textContent = `Avant\n${scene.before.title}\n${scene.before.visualPrompt}\n\nAprès\n${scene.after.title}\n${scene.after.visualPrompt}`;
+    details.append(label, comparison);
+    if (scene.imageMayNotMatch) {
+      const warning = document.createElement("p");
+      warning.textContent = "L’image liée sera conservée. Elle peut ne plus correspondre au nouveau prompt.";
+      details.append(warning);
+      details.open = true;
+    }
+    dialog.append(details);
+  }
+  const audio = document.createElement("p");
+  const overruns = preview.estimatedAudioOverruns
+    .map(scene => `scène ${scene.sceneNumber} (+${scene.overflowSeconds} s)`);
+  audio.textContent = (overruns.length ? `Durée audio estimée supérieure à la durée déclarée pour ${overruns.join(", ")}. ` : "") +
+    "Le nouveau plan ne réutilise aucun ancien audio.";
+  dialog.append(audio);
+  for (const [value, label] of [["cancel", "Annuler"], ["confirm", "Confirmer la mise à jour des scènes"]]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.autofocus = value === "cancel";
+    button.addEventListener("click", () => dialog.close(value));
+    dialog.append(button);
+  }
+  document.body.append(dialog);
+  try {
+    const decision = new Promise(resolve => {
+      dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true });
+    });
+    dialog.showModal();
+    return await decision;
+  } finally {
+    dialog.remove();
+  }
+}
+
 document.getElementById("test-scenes").addEventListener("click", async () => {
   const result = document.getElementById("test-scenes-result");
 
@@ -1505,22 +1555,46 @@ document.getElementById("test-scenes").addEventListener("click", async () => {
     );
   };
 
+  const prepareScenes = (extra = {}) => fetch("/api/ai/prepare-scenes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ script, projectId, ...extra })
+  });
+
   try {
-    const response = await fetch("/api/ai/prepare-scenes", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      credentials: "same-origin",
-      body: JSON.stringify({
-        script,
-        projectId: document.getElementById("video-form").dataset.editId
-      })
-    });
-
-    const data = await response.json();
-
+    let response = await prepareScenes();
+    let data = await response.json();
     if (!isStillCurrent()) {
+      return;
+    }
+
+    if (response.status === 409 && data.reconciliationAvailable === true &&
+        data.error === "SCENE_CONTENT_CHANGED_REVIEW_REQUIRED") {
+      const previewResponse = await prepareScenes({ reconciliation: "preview" });
+      const preview = await previewResponse.json();
+      if (!isStillCurrent()) return;
+      if (!previewResponse.ok) {
+        result.textContent = preview.error === "SCENE_RECONCILIATION_NUMBER_MISMATCH"
+          ? "Les numéros des scènes enregistrées et proposées doivent correspondre."
+          : "Impossible de préparer l’aperçu. Vérifiez le projet et réessayez.";
+        return;
+      }
+      const approved = await reviewSceneDifferences(preview);
+      if (!isStillCurrent()) return;
+      if (!approved) {
+        result.textContent = "Mise à jour annulée.";
+        return;
+      }
+      response = await prepareScenes({ reconciliation: "confirm", fingerprint: preview.fingerprint });
+      data = await response.json();
+      if (!isStillCurrent()) return;
+      if (!response.ok) {
+        result.textContent = data.message || "Impossible de confirmer la mise à jour.";
+        return;
+      }
+      result.textContent = "Scènes mises à jour. Les images liées ont été conservées.\n" +
+        JSON.stringify(data, null, 2);
       return;
     }
 
