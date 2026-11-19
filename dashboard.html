@@ -3389,62 +3389,6 @@ if (!form.dataset.editId) {
 });
 </script>
  
-<script>
-document.getElementById("complete-script").addEventListener("click", async () => {
-  const button = document.getElementById("complete-script");
-  const scriptField = document.getElementById("video-script");
-  const result = document.getElementById("test-scenes-result");
-  const script = scriptField?.value.trim() || "";
-
-  if (!script) {
-    result.textContent = "Veuillez d'abord saisir ou générer un scénario.";
-    return;
-  }
-
-  if (script.length > 15000) {
-    result.textContent = "Scénario trop long (15000 caractères maximum).";
-    return;
-  }
-
-  const confirmed = window.confirm(
-    "Compléter ce scénario utilisera des crédits OpenAI. Voulez-vous continuer ?"
-  );
-
-  if (!confirmed) return;
-
-  button.disabled = true;
-  result.textContent = "Complétion du scénario en cours...";
-
-  try {
-    const response = await fetch("/api/ai/complete-script", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      credentials: "same-origin",
-      body: JSON.stringify({ script })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || !data.success) {
-      result.textContent = data.message || "Impossible de compléter le scénario.";
-      return;
-    }
-
-    scriptField.value = data.script;
-    scriptField.dispatchEvent(new Event("input", { bubbles: true }));
-
-    result.textContent =
-      "Scénario complété. Vérifiez le texte avant de préparer les scènes.";
-
-  } catch (error) {
-    result.textContent = "Erreur : " + error.message;
-  } finally {
-    button.disabled = false;
-  }
-});
-</script>
 
 </body>
 </html>

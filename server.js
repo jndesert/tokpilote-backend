@@ -971,7 +971,26 @@ Produis un script clair, créatif et directement exploitable.`,
 app.post("/api/ai/complete-script", async (req, res) => {
   res.set("Cache-Control", "no-store");
 
-  if (req.get("Origin") !== "https://videapilot-api.onrender.com") {
+  const origin = req.get("Origin");
+  let originAllowed = origin === "https://videapilot-api.onrender.com";
+  if (process.env.VIDEAPILOT_ENVIRONMENT === "staging") {
+    const configuredOrigin = process.env.VIDEO_RENDER_ALLOWED_ORIGIN;
+    let stagingOrigin;
+    try {
+      stagingOrigin = new URL(configuredOrigin);
+    } catch {
+      // Missing or invalid configuration leaves staging access closed.
+    }
+    // Express derives req.secure using the existing one-hop proxy policy.
+    // Compare the actual Host header rather than X-Forwarded-Host.
+    originAllowed = stagingOrigin?.protocol === "https:" &&
+      configuredOrigin === stagingOrigin.origin &&
+      origin === configuredOrigin &&
+      req.secure &&
+      req.get("Host") === stagingOrigin.host;
+  }
+
+  if (!originAllowed) {
     return res.status(403).json({
       message: "Origine non autorisée."
     });
